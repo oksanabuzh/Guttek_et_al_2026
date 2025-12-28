@@ -13,10 +13,20 @@ dat <- read_csv("data/Sampling5.0Data.csv") %>%
   rename("abundance" = `1.00`,
          EuroMed = "Euro+Med Taxon") %>%
   filter(Layer!="B") %>%
-  select(PlotNo, Subplot, Date, Taxon, EuroMed, phen,	Seedling, Juvenile, 
-         FlowerBud, Flowering, Fruiting, PostFruiting, height) %>% 
+  mutate(height=ifelse(height=="X", NA, height)) %>%
+  mutate(height = vapply(strsplit(height, ",\\s*"),
+                             function(vals) {
+                               nums <- as.numeric(vals)
+                               nums <- nums[!is.na(nums)]
+                               if (length(nums) == 0) NA_real_ else mean(nums)
+                             }, numeric(1))) %>% 
+  select(PlotNo, Subplot, Date, Taxon, EuroMed, height, phen,	Seedling, Juvenile, 
+         FlowerBud, Flowering, Fruiting, PostFruiting) %>% 
   mutate(across(c(phen, Seedling, Juvenile, FlowerBud, Flowering, Fruiting, PostFruiting),
                 ~ replace(., is.na(.), 0)))
+
+
+str(dat)
 
 
 
