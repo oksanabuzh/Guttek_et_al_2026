@@ -23,14 +23,14 @@ dat <- read_csv("data/Sampling5.0Data.csv") %>%
   select(PlotNo, Subplot, Date, Taxon, EuroMed, height, phen,	Seedling, Juvenile, 
          FlowerBud, Flowering, Fruiting, PostFruiting) %>% 
   mutate(across(c(phen, Seedling, Juvenile, FlowerBud, Flowering, Fruiting, PostFruiting),
-                ~ replace(., is.na(.), 0)))
+                ~ replace(., is.na(.), 0))) %>% 
+  mutate(Month = lubridate::month(Date, label = TRUE, abbr = FALSE))
 
 
 str(dat)
 
 
-
-
+dat$Month
 
 
 names <- read_csv("data/raw_data/Sampling5.0Data.csv") %>% 
