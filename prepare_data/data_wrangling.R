@@ -30,8 +30,10 @@ dat <- read_csv("data/Sampling5.0Data.csv") %>%
 str(dat)
 
 
-dat$Month
+dat %>% 
+  unique(Month)
 
+?mutate
 
 names <- read_csv("data/raw_data/Sampling5.0Data.csv") %>% 
   rename(EuroMed = `Euro+Med Taxon`) %>%  
