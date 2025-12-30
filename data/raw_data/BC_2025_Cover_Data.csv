@@ -1,4 +1,4 @@
-Plot_No,Date,Subplot,Month,Scale_m2,Veg_Total_Cover,Herb_Cover,Cryptogam_Cover,Bare_Ground_Cover,Leaves_Cover,Litter_Cover_Total,Litter_Cover_last_year_litter,Litter_Cover_litte_from_2025_mowing,Dead_Wood_Cover,Stones_Rocks_Cover,Gravel_Cover,Fine_Soil_Cover,Max_Herb_Height,Max_Cryptogam_Height,10m_Max_Cryptogam_Height,Remarks
+PlotNo,Date,Subplot,Month,Scale_m2,Veg_Total_Cover,Herb_Cover,Cryptogam_Cover,Bare_Ground_Cover,Leaves_Cover,Litter_Cover_Total,Litter_Cover_last_year_litter,Litter_Cover_litte_from_2025_mowing,Dead_Wood_Cover,Stones_Rocks_Cover,Gravel_Cover,Fine_Soil_Cover,Max_Herb_Height,Max_Cryptogam_Height,10m_Max_Cryptogam_Height,Remarks
 BC01,29/03/2025,NW,March,1,95,40,80,1,0.1,15,15,NA,0,0,0,100,6,3,,
 BC01,22/05/2025,NW,May,1,90,60,75,5,3,15,15,NA,1,0,0,100,40,3,,
 BC01,24/07/2025,NW,July,1,90,65,90,1,10,20,20,0,0.1,0,0,100,53,3,,
