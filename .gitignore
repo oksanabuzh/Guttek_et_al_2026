@@ -1,5 +1,6 @@
 # Data folder
 data/
+data/raw_data
 
 # History files
 .Rhistory
