@@ -19,12 +19,12 @@ produced by [data_wrangling](../prepare_data/data_wrangling.R)
 | cover         | numeric (%)                          | Cover % for each species. |
 | height        | numeric (cm)                         | Mean height (cm) of each species (average of n individuals measured on each 10m2-plot measured in field for living aboveground plant). |
 | Biomass       | numeric (index)                      | Above-ground biomass (index by [Fischer et al.](https://doi.org/10.1111/jvs.13182)) estimated for each species from the cover and height of living plant parts. | 
-| Seedling      | binary (0|1)                         | "Seedling" phenophase for each species, coded as 0-absent, 1-present.|
-| Juvenile      | binary (0|1)                         | "Juvenile" phenophase for each species, coded as 0-absent, 1-present.| 
-| FlowerBud     | binary (0|1)                         | "FlowerBud" phenophase for each species, coded as 0-absent, 1-present.|
-| Flowering     | binary (0|1)                         | "Flowering" phenophase for each species, coded as 0-absent, 1-present.|
-| Fruiting      | binary (0|1)                         | "Fruiting" phenophase for each species, coded as 0-absent, 1-present.|
-| PostFruiting  | binary (0|1)                         | "PostFruiting" phenophase for each species, coded as 0-absent, 1-present.|
+| Seedling      | binary (0/1)                         | "Seedling" phenophase for each species, coded as 0-absent, 1-present.|
+| Juvenile      | binary (0/1)                         | "Juvenile" phenophase for each species, coded as 0-absent, 1-present.| 
+| FlowerBud     | binary (0/1)                         | "FlowerBud" phenophase for each species, coded as 0-absent, 1-present.|
+| Flowering     | binary (0/1)                         | "Flowering" phenophase for each species, coded as 0-absent, 1-present.|
+| Fruiting      | binary (0/1)                         | "Fruiting" phenophase for each species, coded as 0-absent, 1-present.|
+| PostFruiting  | binary (0/1)                         | "PostFruiting" phenophase for each species, coded as 0-absent, 1-present.|
 
 
 ### [Commun_Spec&Phenolog_Composition_1m2.csv](../data/processed_data/Commun_Spec&Phenolog_Composition_1m2.csv)
