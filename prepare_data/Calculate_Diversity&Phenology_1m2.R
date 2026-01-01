@@ -1,4 +1,4 @@
-# Purpuse: Calculate community diversity and phenology metrics at 1m2 plot level
+# Purpose: Calculate community diversity and phenology metrics at 1m2 plot level
 
 
 library(tidyverse)
