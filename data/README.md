@@ -27,12 +27,17 @@ produced by [calculate_diversity](../prepare_data/Calculate_Diversity&Phenology_
 
 ## [Commun_Spec&Phenolog_Composition_1m2.csv](../data/processed_data/Commun_Spec&Phenolog_Composition_1m2.R)
 
-| Variable      | Units                       | Meaning |
+| Variable      | Units / 1 m²                | Meaning |
 |---------------|-----------------------------|---------|
 | PlotNo        | character                   | Plot identifier. |
-| Month         | ordered factor              | Month of observation. Ideally stored as full month name (e.g., "April") or month number; ordering should follow the calendar. |
-| Taxon         | character                   | Species name (or taxon code) as used in the source data. |
-| cover         | numeric (%)                 | Group-level total cover: sum(cover) across raw rows for the PlotNo × Month × Taxon group. Units are as in `vegetation2025_1m2.csv` (commonly % cover or proportion per 1 m²). |
+| Subplot       | character                   | Subplot identifier: NW (N), SE (S). |
+| Month         | ordered factor              | Month of observation. |
+| Taxon         | character                   | Species name  |
+| EuroMed       | character                   | Species name based on the Euro+Med Taxon |
+| cover         | numeric (%)                 | Cover % for each species. |
+| height        | numeric (cm)                | Mean height (cm) of each species (average of n individuals measured on each 10m2-plot each month). |
+| Biomass       | numeric (index)             | Index of biomass (by [Fischer et al.](https://doi.org/10.1111/jvs.13182)) measured as cover * height for each species |. 
+
 | Seedling      | numeric (% cover)           | "Seedling" phenophase for each species weighted on it's cover. `Seedling == 0` when this phenophase was not present for this species, month and plot. |
 | Juvenile      | numeric (% cover)           | "Juvenile" phenophase for each species weighted on it's cover. `Juvenile == 0` when this phenophase was not present for this species, month and plot. |
 | FlowerBud     | numeric (% cover)           | "FlowerBud" phenophase for each species weighted on it's cover. `FlowerBud == 0` when this phenophase was not present for this species, month and plot. |
