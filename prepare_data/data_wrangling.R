@@ -1,4 +1,4 @@
-# data wrangling
+# Purpose: Data wrangling for vegetation data
 
 
 library(tidyverse)
@@ -31,7 +31,6 @@ Cover_data <- read_csv("data/raw_data/BC_2025_Cover_Data.csv") %>%
 
 # traits data
 traits <- read_csv("data/traits.csv")
-
 
 # prepare phenology data
 # phenology and height were measured only on 10m2 scale
@@ -105,8 +104,6 @@ data_1m2 <- read_csv("data/raw_data/Sampling5.0Data.csv") %>%
 
 str(data_1m2)
 
-# write_csv(traits, "data/processed_data/vegetation_2025_1m2.csv")
-
 # check if all species from 1m2 are present in 10m2
 data_10m2 %>% 
   select(PlotNo, Month, Taxon, cover10m2) %>%
@@ -118,11 +115,8 @@ data_10m2 %>%
   filter(is.na(cover10m2))
 
 
+write_csv(data_1m2, "data/processed_data/vegetation2025_1m2.csv")
 
-# check data  -----
-dat %>% pull(Layer) %>% unique()
-
-dat %>% filter(is.na(cover))
 
 
 dat %>% select(Taxon,  EuroMed) %>% 
@@ -131,16 +125,3 @@ dat %>% select(Taxon,  EuroMed) %>%
   print(n=Inf) %>% 
   left_join(traits, by = c("Taxon", "EuroMed")) %>% 
   filter(is.na(lifeform_lianaHerb))
-
-# Community composition --------
-
-
-CommunCompos <- dat %>% 
-  group_by(PlotNo, Month, Taxon) %>%
-  summarise(cover=sum(cover, na.rm = TRUE),  
-            .groups = "drop") 
-
-write_csv(CommunCompos, "data/processed_data/Community_Composition.csv")  
-
-?summarise
-
