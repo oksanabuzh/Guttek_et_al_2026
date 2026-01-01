@@ -1,0 +1,28 @@
+Taxon,EuroMed,functional_group,Disturbance.Severity,Disturbance.Frequency,Mowing.Frequency,Grazing.Pressure,Soil.Disturbance
+Asteracea,Asteracea,NA,NA,NA,NA,NA,NA
+Plantae (rosette),Plantae,NA,NA,NA,NA,NA,NA
+Poaceae,Poaceae,graminoid,NA,NA,NA,NA,NA
+Rosaceae,Rosaceae,NA,NA,NA,NA,NA,NA
+Acer,Acer,woody,NA,NA,NA,NA,NA
+Crataegus,Crataegus,woody,NA,NA,NA,NA,NA
+Prunus,Prunus,woody,NA,NA,NA,NA,NA
+Quercus,Quercus,woody,NA,NA,NA,NA,NA
+Ulmus,Ulmus,woody,NA,NA,NA,NA,NA
+Abies concolor,Abies concolor,woody,NA,NA,NA,NA,NA
+Carduus,Carduus,other_forb,NA,NA,NA,NA,NA
+Carex,Carex,graminoid,NA,NA,NA,NA,NA
+Corydalis,Corydalis,other_forb,NA,NA,NA,NA,NA
+Leontodon,Leontodon,other_forb,NA,NA,NA,NA,NA
+Myosotis,Myosotis,other_forb,NA,NA,NA,NA,NA
+Rubus,Rubus,woody,NA,NA,NA,NA,NA
+Crocus,Crocus,other_forb,NA,NA,NA,NA,NA
+Medicago sativa,Medicago sativa,legume,NA,NA,NA,NA,NA
+Narcissus,Narcissus,other_forb,NA,NA,NA,NA,NA
+Scilla siberica,Othocallis siberica,other_forb,NA,NA,NA,NA,NA
+Trifolium incarnatum,Trifolium incarnatum,legume,NA,NA,NA,NA,NA
+Cerastium,Cerastium,other_forb,NA,NA,NA,NA,NA
+Galium album,Galium album,other_forb,NA,NA,NA,NA,NA
+Taraxacum,Taraxacum,other_forb,NA,NA,NA,NA,NA
+Tragopogon,Tragopogon,other_forb,NA,NA,NA,NA,NA
+Verbascum,Verbascum,other_forb,NA,NA,NA,NA,NA
+Veronica sublobata,Veronica sublobata,other_forb,NA,NA,NA,NA,NA

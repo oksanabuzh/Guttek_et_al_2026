@@ -29,10 +29,9 @@ Cover_data <- read_csv("data/raw_data/BC_2025_Cover_Data.csv") %>%
   filter(Scale_m2 == 1) %>%
   select(-Date, -Scale_m2, -Veg_Total_Cover, -"10m_Max_Cryptogam_Height", -Remarks)
 
-# traits data
-traits <- read_csv("data/traits.csv")
 
-# prepare phenology data
+
+# prepare phenology data -------------
 # phenology and height were measured only on 10m2 scale
 data_10m2 <- read_csv("data/raw_data/Sampling5.0Data.csv") %>%
   mutate(Date = as.Date(Date, "%d/%m/%Y")) %>% 
@@ -73,7 +72,7 @@ data_10m2 <- read_csv("data/raw_data/Sampling5.0Data.csv") %>%
 
 str(data_10m2)
 
-# vegetation data 1m 2
+# vegetation data 1m2 ----------------
 data_1m2 <- read_csv("data/raw_data/Sampling5.0Data.csv") %>%
   mutate(Date = as.Date(Date, "%d/%m/%Y")) %>% 
   mutate(Month = lubridate::month(Date, label = TRUE, abbr = FALSE),
@@ -117,11 +116,31 @@ data_10m2 %>%
 
 write_csv(data_1m2, "data/processed_data/vegetation2025_1m2.csv")
 
+# trait data ---------------------------------------------------------------
 
+# traits data
+trait_data <- read_csv("data/raw_data/traits.csv")
 
-dat %>% select(Taxon,  EuroMed) %>% 
-  group_by(Taxon,  EuroMed) %>% 
-  summarise(count = n(), .groups = "drop") %>% 
-  print(n=Inf) %>% 
-  left_join(traits, by = c("Taxon", "EuroMed")) %>% 
-  filter(is.na(lifeform_lianaHerb))
+disturbance_indic <- read_csv("data/raw_data/disturbance_indicator_values_Midolo_et_al_2022.csv") %>%
+  select(species_corrected_OB, Disturbance.Severity, Disturbance.Frequency, 
+                  Mowing.Frequency, Grazing.Pressure, Soil.Disturbance) %>% 
+  rename("EuroMed"=species_corrected_OB)
+
+traits <- trait_data %>% 
+  left_join(disturbance_indic, by = "EuroMed") 
+
+write_csv(traits, "data/processed_data/Traits_Dist.Ind.Values.csv")
+
+# check merged data
+missing_Taxa <- traits%>% 
+  select(Taxon, EuroMed, functional_group, Disturbance.Severity, Disturbance.Frequency, 
+         Mowing.Frequency, Grazing.Pressure, Soil.Disturbance) %>%
+  filter(if_any(all_of(
+    c("Disturbance.Severity", "Disturbance.Frequency",
+      "Mowing.Frequency", "Grazing.Pressure", "Soil.Disturbance")),
+    is.na)) %>% print(n=Inf)
+
+missing_Taxa
+
+# write_csv(missing_Taxa, "data/missing_taxa_for_disturbance_indicators.csv")
+
