@@ -25,19 +25,17 @@ produced by [calculate_diversity](../prepare_data/Calculate_Diversity&Phenology_
 
 # Metadata for files
 
-## Commun_Spec&Phenolog_Composition_1m2.csv
+## [Commun_Spec&Phenolog_Composition_1m2.csv](../data/processed_data/Commun_Spec&Phenolog_Composition_1m2.R)
 
 | Variable      | Units                       | Meaning |
 |---------------|-----------------------------|---------|
-| PlotNo        | character / integer         | Plot identifier. |
-| Month         | ordered factor or character | Month of observation. Ideally stored as full month name (e.g., "April") or month number; ordering should follow the calendar. |
+| PlotNo        | character                   | Plot identifier. |
+| Month         | ordered factor              | Month of observation. Ideally stored as full month name (e.g., "April") or month number; ordering should follow the calendar. |
 | Taxon         | character                   | Species name (or taxon code) as used in the source data. |
-| cover         | numeric (see source)        | Group-level total cover: sum(cover) across raw rows for the PlotNo × Month × Taxon group. Units are as in `vegetation2025_1m2.csv` (commonly % cover or proportion per 1 m²). |
-| Seedling      | numeric (0–1) or NA         | Cover-weighted proportion of the group's cover in the "Seedling" phenophase: Seedling_sum / cover. NA when `cover == 0`. |
-| Juvenile      | numeric (0–1) or NA         | Cover-weighted proportion for the Juvenile phenophase (Juvenile_sum / cover). NA when `cover == 0`. |
-| FlowerBud     | numeric (0–1) or NA         | Cover-weighted proportion for the FlowerBud phenophase (FlowerBud_sum / cover). NA when `cover == 0`. |
-| Flowering     | numeric (0–1) or NA         | Cover-weighted proportion for the Flowering phenophase (Flowering_sum / cover). NA when `cover == 0`. |
-| Fruiting      | numeric (0–1) or NA         | Cover-weighted proportion for the Fruiting phenophase (Fruiting_sum / cover). NA when `cover == 0`. |
-| PostFruiting  | numeric (0–1) or NA         | Cover-weighted proportion for the PostFruiting phenophase (PostFruiting_sum / cover). NA when `cover == 0`. |
-
-Note: phenophase proportions are cover-weighted and may not sum to 1 if phases overlap or if raw phenophase indicators allow multiple simultaneous states.
+| cover         | numeric (%)                 | Group-level total cover: sum(cover) across raw rows for the PlotNo × Month × Taxon group. Units are as in `vegetation2025_1m2.csv` (commonly % cover or proportion per 1 m²). |
+| Seedling      | numeric (% cover)           | "Seedling" phenophase for each species weighted on it's cover. `Seedling == 0` when this phenophase was not present for this species, month and plot. |
+| Juvenile      | numeric (% cover)           | "Juvenile" phenophase for each species weighted on it's cover. `Juvenile == 0` when this phenophase was not present for this species, month and plot. |
+| FlowerBud     | numeric (% cover)           | "FlowerBud" phenophase for each species weighted on it's cover. `FlowerBud == 0` when this phenophase was not present for this species, month and plot. |
+| Flowering     | numeric (% cover)           | "Flowering" phenophase for each species weighted on it's cover. `Flowering == 0` when this phenophase was not present for this species, month and plot. |
+| Fruiting      | numeric (% cover)           | "Fruiting" phenophase for each species weighted on it's cover. `Fruiting == 0` when this phenophase was not present for this species, month and plot. |
+| PostFruiting  | numeric (% cover)           | "PostFruiting" phenophase for each species weighted on it's cover. `PostFruiting == 0` when this phenophase was not present for this species, month and plot. |
