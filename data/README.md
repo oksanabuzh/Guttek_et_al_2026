@@ -3,7 +3,7 @@ This folder contains datasets used for analysis
 ## Data files and metadata 
 
 
-## folder 'processed_data'
+# Files in folder 'processed_data'
 
 ### [Commun_Spec&Phenolog_Composition_1m2.csv](../data/processed_data/Commun_Spec&Phenolog_Composition_1m2.R)
 Contains community species and phenological composition for each subplot and sampling campaign;
