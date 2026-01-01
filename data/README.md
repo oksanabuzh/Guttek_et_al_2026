@@ -70,7 +70,17 @@ produced by [Calculate_Diversity&Phenology_1m2](../prepare_data/Calculate_Divers
 | PostFruiting  | numeric (% cover)                    | Sum of cover of all species with "PostFruiting" phenophase for each species weighted on it's cover. |
 
 
+### Traits_Dist.Ind.Values.csv](../data/processed_data/Traits_Dist.Ind.Values.csv)
+contains list of unique species names, 
+their species-specific red-list status, functional groups [FloraVeg.EU](https://doi.org/10.1111/avsc.12798),
+and disturbance indicator values [Midolo et al., 2022](https://doi.org/10.1111/geb.13603);
+produced by [data_wrangling](../prepare_data/prepare_data/data_wrangling.R)
 
+| Variable      | Units                                | Meaning |
+|---------------|--------------------------------------|---------|
+| Taxon         | character                            | Species name  |
+| EuroMed       | character                            | Species name based on [Euro+Med PlantBase](https://www.europlusmed.org) |
+|               |                                      |          |
 
 
 # Files in folder 'raw_data'
