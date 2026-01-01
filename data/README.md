@@ -5,7 +5,7 @@ This folder contains datasets used for analysis
 
 # Files in folder 'processed_data'
 
-### [Commun_Spec&Phenolog_Composition_1m2.csv](../data/processed_data/Commun_Spec&Phenolog_Composition_1m2.R)
+### [Commun_Spec&Phenolog_Composition_1m2.csv](../data/processed_data/Commun_Spec&Phenolog_Composition_1m2.csv)
 Contains community species and phenological composition for each subplot and sampling campaign;
 produced by [Calculate_Diversity&Phenology_1m2](../prepare_data/Calculate_Diversity&Phenology_1m2.R)
 
@@ -27,7 +27,7 @@ produced by [Calculate_Diversity&Phenology_1m2](../prepare_data/Calculate_Divers
 | PostFruiting  | numeric (% cover)           | "PostFruiting" phenophase for each species weighted on it's cover. `PostFruiting == 0` when this phenophase was not present for this species, month and plot. |
 
 
-### [Diversity_phenology_1m2.csv](../data/processed_data/Diversity_phenology_1m2.csv.R)
+### [Diversity_phenology_1m2.csv](../data/processed_data/Diversity_phenology_1m2.csv)
 contains plant diversity indices and community phenology weighted on species cover for each subplot and sampling campaign;
 produced by [Calculate_Diversity&Phenology_1m2](../prepare_data/Calculate_Diversity&Phenology_1m2.R)
 
