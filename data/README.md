@@ -15,7 +15,7 @@ produced by [data_wrangling](../prepare_data/data_wrangling.R)
 | Subplot       | character                            | Subplot identifier: NW (N), SE (S). |
 | Month         | ordered factor                       | Month of observation. |
 | Taxon         | character                            | Species name  |
-| EuroMed       | character                            | Species name based on the Euro+Med Taxon |
+| EuroMed       | character                            | Species name based on [Euro+Med PlantBase](https://www.europlusmed.org) |
 | cover         | numeric (%)                          | Cover % for each species. |
 | height        | numeric (cm)                         | Mean height (cm) of each species (average of n individuals measured on each 10m2-plot measured in field for living aboveground plant). |
 | Biomass       | numeric (index)                      | Above-ground biomass (index by [Fischer et al.](https://doi.org/10.1111/jvs.13182)) estimated for each species from the cover and height of living plant parts. | 
@@ -37,7 +37,7 @@ produced by [Calculate_Diversity&Phenology_1m2](../prepare_data/Calculate_Divers
 | Subplot       | character                            | Subplot identifier: NW (N), SE (S). |
 | Month         | ordered factor                       | Month of observation. |
 | Taxon         | character                            | Species name  |
-| EuroMed       | character                            | Species name based on the Euro+Med Taxon |
+| EuroMed       | character                            | Species name based on the [Euro+Med PlantBase](https://www.europlusmed.org) |
 | cover         | numeric (%)                          | Cover % for each species. |
 | height        | numeric (cm)                         | Mean height (cm) of each species (average of n individuals measured on each 10m2-plot measured in field for living aboveground plant). |
 | Biomass       | numeric (index)                      | Above-ground biomass (index by [Fischer et al.](https://doi.org/10.1111/jvs.13182)) estimated for each species from the cover and height of living plant parts. | 
