@@ -101,8 +101,6 @@ write_csv(Mod_sign %>%
                 as_tibble(rownames = "Predictors")),
           "results/CCA_phenology_results.csv")
 
-summary(eigenvals(ord_mod))[[2,1]]
-
 
 # extract species scores
 sp.scrs <- scores(ord_mod, display = "species",
