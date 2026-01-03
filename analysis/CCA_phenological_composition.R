@@ -6,22 +6,47 @@ library(vegan)
 library(ggrepel)
 
 # data
-Phenophase_compos <- read_csv("data/Phenological_composition.csv") %>% 
-  unite(Plot, PlotNo, Subplot, MonthLabel, remove = FALSE) %>% 
-  column_to_rownames("Plot") %>% 
-  dplyr::select(-c( "PlotNo", "MowFreq", "MonthLabel", "Subplot", 
-             "phen_evenness", "phen_Shannon", "phen_Richness"))
+Phenophase_compos <- read_csv("data/processed_data/Diversity_phenology_1m2.csv") %>% 
+  unite(Plot, PlotNo, Subplot, Month, remove = TRUE) %>% 
+  select(Plot, height_mean, Seedling_cover,	Juvenile_cover,	FlowerBud_cover,	Flowering_cover,	Fruiting_cover,	PostFruiting_cover) %>%
+  column_to_rownames("Plot")
+
 
 str(Phenophase_compos)
 names(Phenophase_compos)
 
-plot_data <- read_csv("data/Phenological_composition.csv") %>% 
-  unite(Plot, PlotNo, Subplot, MonthLabel, remove = FALSE) %>%  
-  unite(Random_effect, PlotNo, MonthLabel, remove = FALSE) %>% 
-  dplyr::select(Plot, Random_effect, PlotNo, MowFreq, MonthLabel, Subplot) %>% 
-  mutate(Random_effect=as.factor(Random_effect))
 
-str(plot_data)
+## predictor data ----
+
+# mowing data
+Mowing_data <- read_csv("data/raw_data/mowing_events_2025.csv") %>% 
+  pivot_longer(cols = c(September,	July,	May,	March),
+               names_to = "Month",
+               values_to = "n_mow_events_befre_sampling")%>% 
+  relocate(Month, .after=Subplot)
+
+# litter and other cover data
+Cover_data <- read_csv("data/raw_data/BC_2025_Cover_Data.csv") %>% 
+  filter(Scale_m2 == 1) %>%
+  mutate(Litter_Cover_litte_from_2025_mowing=
+           ifelse(is.na(Litter_Cover_litte_from_2025_mowing), 0, 
+                  Litter_Cover_litte_from_2025_mowing)) %>%
+  select(-Date, -Scale_m2, -Veg_Total_Cover, -"10m_Max_Cryptogam_Height", -Remarks)
+
+str(Cover_data)
+summary(Cover_data)
+
+plot_data <- Mowing_data %>% 
+  left_join(Cover_data, by=c("PlotNo", "Subplot", "Month")) %>% 
+  unite(Plot, PlotNo, Subplot, Month, remove = FALSE) 
+
+
+predictor_data <- Phenophase_compos %>% # make same row order as in Phenophase_compos 
+  rownames_to_column("Plot") %>% select(Plot) %>%
+  left_join(plot_data, by="Plot") 
+
+str(predictor_data)
+
 
 # Data exploration -----
 # check both data sets for NA‘s
@@ -41,10 +66,10 @@ decorana(log1p(Phenophase_compos))
 
 
 set.seed(1)
-ord_mod <-  cca(Phenophase_compos ~ MowFreq:MonthLabel + MowFreq + MonthLabel , data = plot_data,
+ord_mod <-  cca(Phenophase_compos ~ MowFreq:MonthLabel + MowFreq + MonthLabel , data = predictor_data,
                 scale = FALSE) # scale data to have the same units
 ord_mod
-anova(ord_mod, strata = as.factor(plot_data$PlotNo), # random effects
+anova(ord_mod, strata = as.factor(predictor_data$PlotNo), # random effects
       by= "terms") # each term (sequentially from first to last), depends on the order
 
 
@@ -57,7 +82,7 @@ RsquareAdj(ord_mod)
 # Permutation tests ------
 ## --- model fit ---
 set.seed(1)
-anova(ord_mod, strata = as.factor(plot_data$PlotNo)) # model fit statistics
+anova(ord_mod, strata = as.factor(predictor_data$PlotNo)) # model fit statistics
 
 
 
@@ -73,7 +98,7 @@ sp.scrs
 plot.scrs <- scores(ord_mod, display = "sites",
                     scaling = "sites") %>% 
   as_tibble(rownames = "Plot") %>% 
-  left_join(plot_data, by="Plot") 
+  left_join(predictor_data, by="Plot") 
 
 plot.scrs
 

@@ -19,7 +19,7 @@ library(tidyverse)
 # data ---------------
 
 # mowing data
-Mowing_data <- read_csv("data/mowing_events_2025.csv") %>% 
+Mowing_data <- read_csv("data/raw_data/mowing_events_2025.csv") %>% 
   pivot_longer(cols = c(September,	July,	May,	March),
                names_to = "Month",
                values_to = "n_mow_events_befre_sampling") 
@@ -68,9 +68,10 @@ data_10m2 <- read_csv("data/raw_data/Sampling5.0Data.csv") %>%
             PostFruiting=mean(PostFruiting, na.rm = TRUE),
             .by=c("PlotNo", "Month", "Taxon"))  %>% 
   mutate(across(c(Seedling, Juvenile, FlowerBud, Flowering, Fruiting, PostFruiting),
-                ~ replace(., is.na(.), 0))) 
-
+                ~ replace(., is.na(.), 0))) %>% 
+  mutate(Vegetative=ifelse((Seedling + Juvenile + FlowerBud + Flowering + Fruiting + PostFruiting) > 0, 1, 0))
 str(data_10m2)
+
 
 # vegetation data 1m2 ----------------
 data_1m2 <- read_csv("data/raw_data/Sampling5.0Data.csv") %>%
