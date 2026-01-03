@@ -69,7 +69,9 @@ data_10m2 <- read_csv("data/raw_data/Sampling5.0Data.csv") %>%
             .by=c("PlotNo", "Month", "Taxon"))  %>% 
   mutate(across(c(Seedling, Juvenile, FlowerBud, Flowering, Fruiting, PostFruiting),
                 ~ replace(., is.na(.), 0))) %>% 
-  mutate(Vegetative=ifelse((Seedling + Juvenile + FlowerBud + Flowering + Fruiting + PostFruiting) > 0, 1, 0))
+  mutate(Vegetative=ifelse(
+    (Seedling + Juvenile + FlowerBud + Flowering + Fruiting + PostFruiting) == 0, 
+    1, 0))
 str(data_10m2)
 
 
