@@ -87,26 +87,27 @@ anova(ord_mod1, strata = as.factor(predictor_data$PlotNo), # random effects
                                    by= "terms") # each term (sequentially from first to last), depends on the order
 
 set.seed(1)
-ord_mod <- cca(species_data ~ MowFreq + Month + 
+ord_mod2 <- cca(species_data ~ MowFreq + Month + 
                  n_mow_events_befre_sampling, data = predictor_data,
                scale = FALSE) # scale data to have the same units
-ord_mod
+ord_mod2
+anova(ord_mod2, strata = as.factor(predictor_data$PlotNo), # random effects
+                     by= "terms") # each term (sequentially from first to last),
 
-ord_effects <- anova(ord_mod, strata = as.factor(predictor_data$PlotNo), # random effects
+ord_effects <- anova(ord_mod2, strata = as.factor(predictor_data$PlotNo), # random effects
                      by= "terms") # each term (sequentially from first to last), depends on the order
 ord_effects
 
-
-vif.cca(ord_mod)
+vif.cca(ord_mod2)
 # proportion variance explained by CCA axes
-summary(eigenvals(ord_mod))
+summary(eigenvals(ord_mod2))
 # adjusted R2
-RsquareAdj(ord_mod)
+RsquareAdj(ord_mod2)
 
 # Permutation tests ------
 ## --- model fit ---
 set.seed(1)
-Mod_sign <- anova(ord_mod, strata = as.factor(predictor_data$PlotNo)) # model fit statistics
+Mod_sign <- anova(ord_mod2, strata = as.factor(predictor_data$PlotNo)) # model fit statistics
 Mod_sign
 
 # save results ------
@@ -114,13 +115,26 @@ Mod_sign
 write_csv(Mod_sign %>% 
             as_tibble(rownames = "Predictors") %>% 
             filter(Predictors!="Residual") %>%
-            mutate(Model_R2=RsquareAdj(ord_mod)[[2]],
-                   CCA1.Prop.Explained=summary(eigenvals(ord_mod))[[2,1]],
-                   CCA2.Prop.Explained=summary(eigenvals(ord_mod))[[2,2]]) %>% 
+            mutate(Model_R2=RsquareAdj(ord_mod2)[[2]],
+                   CCA1.Prop.Explained=summary(eigenvals(ord_mod2))[[2,1]],
+                   CCA2.Prop.Explained=summary(eigenvals(ord_mod2))[[2,2]]) %>% 
             bind_rows(ord_effects %>% 
                         as_tibble(rownames = "Predictors")),
           "results/CCA_species_results.csv")
 plot(ord_mod)
+
+
+# remove non significant effect of mowing for plotting
+set.seed(1)
+ord_mod <- cca(species_data ~ MowFreq + Month, 
+               data = predictor_data,
+               scale = FALSE) # scale data to have the same units
+
+ord_mod
+
+anova(ord_mod, strata = as.factor(predictor_data$PlotNo), # random effects
+      by= "terms") # each term (sequentially from first to last),
+
 
 # extract species scores
 sp.scrs <- scores(ord_mod, display = "species",
@@ -147,12 +161,6 @@ sp.scrs <- scores(ord_mod, display = "species",
 
 sp.scrs
 
-
-sp.scrs %>% 
-  filter(is.na(Taxon))
-
-sp.scrs %>% 
-  filter(Taxon=="Plant.(ro")
 
 # extract plot scores 
 plot.scrs <- scores(ord_mod, display = "sites",
@@ -241,7 +249,7 @@ plot1 <- ggplot(data=plot.scrs,
                   size=5, fontface="bold", show.legend = F) +
   theme_bw()+
   scale_color_manual(values = c("#F8766D", "#00B0F6","#00BA38"))+
-  labs(color="Management", x="CCA1 (3.6 %)", y="CCA2 (3.1 %)")
+  labs(color="Management", x="CCA1 (3.8 %)", y="CCA2 (3.4 %)")
 
 print(plot1)
 

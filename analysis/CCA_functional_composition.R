@@ -19,7 +19,7 @@ str(species_data)
 
 
 ## functional groups data ----
-Func_cgroups <- read_csv("data/processed_data/Traits_Dist.Ind.Values.csv") %>% 
+Func_groups <- read_csv("data/processed_data/Traits_Dist.Ind.Values.csv") %>% 
   select(-EuroMed, -status_detailed,
         -raunkiaer_hydrophyte, # no species in category 
         -lifeform_semishrub, # one species which is at the same time shrub
@@ -30,10 +30,18 @@ Func_cgroups <- read_csv("data/processed_data/Traits_Dist.Ind.Values.csv") %>%
   mutate(lifeform_tree_schrub=lifeform_tree+lifeform_shrub, 
          .before=lifeform_herbPoli,
          .keep = "unused") %>% 
-  mutate(lifeform_tree_schrub=ifelse(lifeform_tree_schrub>1, 1, lifeform_tree_schrub)) # binary
+  mutate(lifeform_tree_schrub=ifelse(lifeform_tree_schrub>1, 1, lifeform_tree_schrub)) %>%  # make binary
+  # convert to fuzzy-coded traits:
+  mutate(across(starts_with("lifespan_"), ~ 
+                  .x / rowSums(across(starts_with("lifespan_"))))) %>%
+  mutate(across(starts_with("lifeform_"), ~ 
+                  .x / rowSums(across(starts_with("lifeform_"))))) %>% 
+  mutate(across(starts_with("raunkiaer_"), ~ 
+                  .x / rowSums(across(starts_with("raunkiaer_")))))
 
-str(Func_cgroups)
-names(Func_cgroups)
+
+str(Func_groups)
+names(Func_groups)
 
 
 
