@@ -9,6 +9,7 @@ library(ggrepel)
 
 ## species data ----
 species_data <- read_csv("data/processed_data/Commun_Spec&Phenolog_Composition_1m2.csv") %>% 
+  filter(!(Taxon %in% c("Asteracea", "Plantae (rosette)", "Rosaceae"))) %>% # no any traits
   unite(Plot, PlotNo, Subplot, Month, remove = TRUE) %>% 
   select(Plot, Taxon, cover) %>%
   arrange(Taxon) %>%
@@ -17,36 +18,79 @@ species_data <- read_csv("data/processed_data/Commun_Spec&Phenolog_Composition_1
 
 str(species_data)
 
+# check if there are species with zero appearance
+which(rowSums(species_data) == 0)
+which(colSums(species_data) == 0)
+
 
 ## functional groups data ----
-Func_groups <- read_csv("data/processed_data/Traits_Dist.Ind.Values.csv") %>% 
-  select(-EuroMed, -status_detailed,
-        -raunkiaer_hydrophyte, # no species in category 
-        -lifeform_semishrub, # one species which is at the same time shrub
-        -lifeform_epiphyte, # no species in category
-        -lifeform_lianaWoody, # no species in category
-        -lifeform_lianaHerb # one species which is at the same time herbPoli
-        ) %>% 
-  mutate(lifeform_tree_schrub=lifeform_tree+lifeform_shrub, 
-         .before=lifeform_herbPoli,
-         .keep = "unused") %>% 
-  mutate(lifeform_tree_schrub=ifelse(lifeform_tree_schrub>1, 1, lifeform_tree_schrub)) %>%  # make binary
-  # convert to fuzzy-coded traits:
-  mutate(across(starts_with("lifespan_"), ~ 
-                  .x / rowSums(across(starts_with("lifespan_"))))) %>%
-  mutate(across(starts_with("lifeform_"), ~ 
-                  .x / rowSums(across(starts_with("lifeform_"))))) %>% 
-  mutate(across(starts_with("raunkiaer_"), ~ 
-                  .x / rowSums(across(starts_with("raunkiaer_")))))
-
+Func_groups <- read_csv("data/processed_data/Commun_Spec&Phenolog_Composition_1m2.csv") %>% 
+  filter(!(Taxon %in% c("Asteracea", "Plantae (rosette)", "Rosaceae"))) %>% # no traits for it
+  select(Taxon) %>% distinct(Taxon) %>% arrange(Taxon) %>% 
+  left_join(read_csv("data/processed_data/Functional_composition.csv") %>% 
+              select(-EuroMed, -status_detailed),
+            by="Taxon") %>% 
+  column_to_rownames("Taxon") 
 
 str(Func_groups)
 names(Func_groups)
 
+# any species with NA across all traits?
+Func_groups %>% filter(if_all(everything(), is.na))
+
+
+## CWM for functional groups ----
+dim(species_data)
+dim(Func_groups)
+
+FuncComp <- FD::functcomp(Func_groups,  as.matrix(species_data), 
+                      CWM.type = "all", 
+                      bin.num=c(  #  bin.num - indicates binary traits to be treated as continuous  
+                        "raunkiaer_phanerophyte", "lifeform_tree_schrub",
+                        "lifeform_herbPoli", "lifeform_herbMono")) 
+  
+FuncComp
+
+
+## Functional diversity ----
+
+# When calculating functional diversity, FD::dbFD Error occurs when mixed categorical and numeric traits
+# thus, convert categorical traits to wide format for each category
+Func_groups_modif <- Func_groups %>% 
+  rownames_to_column("Taxon") %>%
+# for column status, create wide format 
+  mutate(present = 1) %>%
+  pivot_wider(names_from = status, values_from=present, values_fill = 0,
+              names_prefix = "status_") %>%
+  mutate(across(starts_with("status_"), ~ replace(.x, status_NA==1, NA))) %>%
+  select(-status_NA) %>% 
+# for column functional_group, create wide format 
+  mutate(present = 1) %>%
+  pivot_wider(names_from = functional_group, values_from=present, values_fill = 0,
+              names_prefix = "FunGr_") %>%
+  column_to_rownames("Taxon")
+
+str(Func_groups_modif)
+
+FuncDiv <- FD::dbFD(Func_groups_modif, as.matrix(species_data), 
+                            calc.CWM = F,
+                    corr = c("cailliez")) 
+FuncDiv
+
+str(FuncDiv)
+
+FuncDiv <- as.data.frame(FuncDiv) %>% 
+  rownames_to_column("Plot") %>%
+  select(-nbsp, -qual.FRic, -sing.sp) %>% 
+  separate(Plot, into = c("PlotNo", "Subplot", "Month"), sep = "_",
+           remove = TRUE)
+
+
+# save Functional diversity indices
+write_csv(FuncDiv, "data/processed_data/Functional_Diversity_1m2.csv")
 
 
 ## predictor data ----
-
 # mowing data
 Mowing_data <- read_csv("data/raw_data/mowing_events_2025.csv") %>% 
   pivot_longer(cols = c(September,	July,	May,	March),

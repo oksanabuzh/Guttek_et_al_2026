@@ -96,4 +96,52 @@ Diversity_phenology_1m2 <- Composition_1m2 %>%
 
 Diversity_phenology_1m2
 
+# Phenological diversity -----------------------------------------------------
+
 write_csv(Diversity_phenology_1m2, "data/processed_data/Diversity_phenology_1m2.csv")
+
+
+# Functional composition & diversity ----------------------------------------------------------
+## functional groups data ----
+Func_groups <- read_csv("data/processed_data/Traits_Dist.Ind.Values.csv") %>% 
+  select(
+         -raunkiaer_hydrophyte, # no species in category 
+         -lifeform_semishrub, # one species which is at the same time shrub
+         -lifeform_epiphyte, # no species in category
+         -lifeform_lianaWoody, # no species in category
+         -lifeform_lianaHerb # one species which is at the same time herbPoli
+  ) %>% 
+  mutate(lifeform_tree_schrub=lifeform_tree+lifeform_shrub, 
+         .before=lifeform_herbPoli,
+         .keep = "unused") %>% 
+  mutate(lifeform_tree_schrub=ifelse(lifeform_tree_schrub>1, 1, lifeform_tree_schrub)) %>%  # make binary
+  # convert to fuzzy-coded traits:
+  mutate(across(starts_with("lifespan_"), ~ 
+                  .x / rowSums(across(starts_with("lifespan_"))))) %>%
+  mutate(across(starts_with("lifeform_"), ~ 
+                  .x / rowSums(across(starts_with("lifeform_"))))) %>% 
+  mutate(across(starts_with("raunkiaer_"), ~ 
+                  .x / rowSums(across(starts_with("raunkiaer_")))))
+
+
+str(Func_groups)
+names(Func_groups)
+
+# check sum of  columns with fuzzy coded traits
+Func_groups %>%
+  mutate(raunkiaer=rowSums(across(starts_with("raunkiaer_"))),
+         lifeform=rowSums(across(starts_with("lifeform_"))),
+         lifespan=rowSums(across(starts_with("lifespan_")))) %>% 
+  select(Taxon, raunkiaer, lifeform, lifespan) %>%
+  drop_na() %>%
+  filter(raunkiaer!=1 | lifeform!=1 | lifespan!=1)
+
+write_csv(Func_groups, "data/processed_data/Functional_composition.csv")
+## CWM data ----
+# calculate CWM for functional groups
+
+FuncComp <- functcomp(Func_groups, Com_comp, 
+                      CWM.type = "all", 
+                      bin.num=c("BodSz_8_") #  bin.num - indicates binary traits to be treated as continuous  
+)  
+FuncComp
