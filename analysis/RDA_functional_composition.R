@@ -8,15 +8,33 @@ library(ggrepel)
 # data
 
 ## Functional composition data (CWM for each trait modality) ----
+FuncComp_all <-read.csv("data/processed_data/CWM_FunctCompos_1m2.csv") %>% 
+  unite(Plot, PlotNo, Subplot, Month, remove = TRUE) 
+
+names(FuncComp_all)
+
+ggcorrplot::ggcorrplot(round(cor(FuncComp_all %>% select(-Plot),method = c("pearson"), use = "pairwise.complete.obs"), 2),
+                       hc.order = F, type = "lower",
+                       lab = TRUE, lab_size = 3,
+                       colors = c("red", "white", "blue"))
+
+
 FuncComp <-read.csv("data/processed_data/CWM_FunctCompos_1m2.csv") %>% 
   unite(Plot, PlotNo, Subplot, Month, remove = TRUE) %>% 
   select(-starts_with("raunkiaer_"),
          -starts_with("lifeform_"),
-         # -Mowing.Frequency, -Grazing.Pressure, -Soil.Disturbance,
-         -Disturbance.Severity, -Disturbance.Frequency) %>%
+        # -status_NotEndangered,
+         # -Mowing.Frequency, 
+         -Disturbance.Frequency,-Disturbance.Severity, -Grazing.Pressure, -Soil.Disturbance) %>%
   column_to_rownames("Plot")
 
 names(FuncComp)
+
+ggcorrplot::ggcorrplot(round(cor(FuncComp, method = c("pearson"), use = "pairwise.complete.obs"), 2),
+                       hc.order = F, type = "lower",
+                       lab = TRUE, lab_size = 3,
+                       colors = c("red", "white", "blue"))
+
 ## predictor data ----
 # mowing data
 Mowing_data <- read_csv("data/raw_data/mowing_events_2025.csv") %>% 
@@ -61,9 +79,11 @@ decorana((FuncComp))
 
 # we would use CCA to be consistent with all other analysis
 
+FuncComp_hell <- decostand(FuncComp, method = "hellinger")
+FuncComp_log <- log1p(FuncComp) 
 
 set.seed(1)
-ord_mod <-  rda(log1p(FuncComp) ~ # MowFreq:Month + 
+ord_mod <-  rda(FuncComp_hell ~ # MowFreq:Month + 
                   MowFreq + Month + 
                   n_mow_events_befre_sampling, data = predictor_data,
                 scale = FALSE) # scale data to have the same units
@@ -114,10 +134,10 @@ sp.scrs <- scores(ord_mod, display = "species",
     Trait_group == "lifespan" ~ "Lifespan",
     Trait_group == "lifeform" ~ "Life form",
     Trait_group == "raunkiaer" ~ "Raunkiaer life form",
-    is.na(Trait_group) ~ "Disturbance indicator",
+    is.na(Trait_group) ~ "Disturbance indicator species",
     Trait_group =="status" ~ "Red-list / aliens")) %>% 
   mutate(Trait_modality=case_when(
-    Trait_modality == "NotEndangered" ~ "least-concern",
+    Trait_modality == "NotEndangered" ~ "least-concerned",
     Trait_modality == "Endangered" ~ "endangered",
     Trait_modality == "Warning" ~ "vulnerable",
     Trait_modality == "Neophyte" ~ "neophyte",
@@ -128,7 +148,7 @@ sp.scrs <- scores(ord_mod, display = "species",
     Trait_modality == "other_forb" ~ "other forb",
     Trait_modality == "Disturbance.Severity" ~ "Distr.Severity",
     Trait_modality == "Disturbance.Frequency" ~ "Distr.Frequency",
-    Trait_modality == "Mowing.Frequency" ~ "Mowing.Distr",
+    Trait_modality == "Mowing.Frequency" ~ "mowing-disturbance species",
     Trait_modality == "Grazing.Pressure" ~ "Grazing.Distr",
     Trait_modality == "Soil.Disturbance" ~ "Soil.Distr",
     .default=Trait_modality)) 
@@ -223,7 +243,8 @@ plot1 <- ggplot(data=plot.scrs,
   geom_point(data=plot.scrs, 
              aes(x= RDA1_centroid, y= RDA2_centroid, 
                  color=Mowing),
-             size=3, pch=18) + 
+             size = 3,  
+             alpha=1, pch=18) + 
   # centroids as text
   geom_text_repel(data=centroids, 
                   #geom_text(data=centroids, 
@@ -232,7 +253,7 @@ plot1 <- ggplot(data=plot.scrs,
                   size=5, fontface="bold", show_guide = F) +
   theme_bw()+
   scale_color_manual(values = c("#F8766D", "#00B0F6","#00BA38"))+
-  labs(color="Management",  x=" RDA1 (9.3 %)", y=" RDA2 (5.8 %)")
+  labs(color="Management",  x="RDA1 (13.6 %)", y=" RDA2 (6.8 %)")
 
 print(plot1)
 
@@ -257,15 +278,17 @@ plot2 <- ggplot(data=plot.scrs,
                aes(x=0, y=0, xend=RDA1, yend=RDA2), 
                arrow=arrow(length=unit(0.3,"cm")), 
                color="gray23", linewidth=1) +
-  geom_text_repel(data=vector.scrs, 
-                  aes(RDA1, RDA2, label="Mowing"), 
-                  color="black", fontface="bold", 
-                  size=5, max.overlaps = Inf) +
+
+  geom_text(data=vector.scrs, 
+            aes(RDA1, RDA2, label="Mowing"), 
+            color="black", fontface="bold", 
+            size=5, hjust=0.3, vjust=-0.3) +
+  
   # species
   geom_point(data=sp.scrs, 
              aes(x= RDA1, y= RDA2, color=Trait_group), 
-             size = 0.5,  
-             alpha=0.8, pch=19)+
+             size = 3,  
+             alpha=1, pch=8)+
   geom_text_repel(data=sp.scrs, 
                   aes(x= RDA1, y= RDA2, color=Trait_group,
                       label = Trait_modality), 
@@ -279,7 +302,7 @@ plot2 <- ggplot(data=plot.scrs,
     "reduced mowing & sowing" = "green3" #"#00BA38" # "#00B0F6"
   )) +
   labs(color="Functional category", fill="Management",
-       x=" RDA1 (9.3 %)", y=" RDA2 (5.8 %)")
+       x=" RDA1 (13.6 %)", y=" RDA2 (6.8 %)")
 
 
 print(plot2)
@@ -299,8 +322,8 @@ plot3 <- ggplot(data=plot.scrs,
   # species
   geom_point(data=sp.scrs, 
              aes(x= RDA1, y= RDA2, color=Trait_group,), 
-             size = 0.5,  
-             alpha=0.8, pch=19)+
+             size = 3,  
+             alpha=1, pch=8)+
   geom_text_repel(data=sp.scrs, 
                   aes(x= RDA1, y= RDA2, label = Trait_modality, 
                       color=Trait_group), 
@@ -315,7 +338,7 @@ plot3 <- ggplot(data=plot.scrs,
     "September"="brown"
   )) +
   labs(fill="Month", color="Functional category",
-       x=" RDA1 (9.3 %)", y=" RDA2 (5.8 %)")
+       x=" RDA1 (13.6 %)", y=" RDA2 (6.8 %)")
 
 
 print(plot3)

@@ -56,9 +56,13 @@ str(predictor_data)
 # species trait (for coloring species in ordination plot)
 Trait_data <- read_csv("data/processed_data/Traits_Dist.Ind.Values.csv") %>% 
   mutate(status=
-           case_when(is.na(status) ~ "Data insufficient",
-                     status  =="NotEndangered" ~ "Not endangered",
+           case_when(is.na(status) ~ "data insufficient",
+                     status == "NotEndangered" ~ "least-concerned",
+                     status == "Endangered" ~ "endangered",
+                     status == "Warning" ~ "vulnerable",
+                     status == "Neophyte" ~ "neophytes",
                      .default=status))  
+
 
 Trait_data %>% 
   distinct(status)
@@ -153,11 +157,13 @@ sp.scrs <- scores(ord_mod, display = "species",
                            str_sub(., 1, 3),            #  subtracts first 5 letters of from that second part (species)
                          sep = '.')) %>% 
   mutate(Taxon = ifelse(Taxon=="Plant.(ro", "Plantae", Taxon)) %>% 
-  mutate(trait=fct_relevel(status,"Endangered",
-                           "Not endangered", 
-                           "Warning",
-                           "Neophyte", 
-                           "Data insufficient"))
+  mutate(trait=fct_relevel(status,"endangered",
+                           "vulnerable", 
+                           "least-concerned",
+                           "neophytes", 
+                           "data insufficient"))
+
+
 
 sp.scrs
 
@@ -282,18 +288,20 @@ plot2 <- ggplot(data=plot.scrs,
   theme_bw()+
   guides(color = guide_legend(override.aes = list(size = 3))) + # makes legend dots large
   scale_color_manual(values = c(
-    "Not endangered" = "forestgreen",#"#1b9e77",   
-    "Endangered"    = "red4",   
-    "Warning"     = "red",   
-    "Neophyte"       = "#3b4cc0",   
-    "Data insufficient"  = "#999999")) +
+    "least-concerned" = "forestgreen",#"#1b9e77",   
+    "endangered"    = "red4",   
+    "vulnerable"     = "red",   
+    "neophytes"       = "#3b4cc0",   
+    "data insufficient"  = "#999999")) +
   scale_fill_manual(values = c(
     "regular mowing" = "red", ##F8766D",
     "reduced mowing" = "#00B0F8", # "#00B0F6",  #"yellow3",
     "reduced mowing & sowing" = "green" #"#00BA38" # "#00B0F6"
   )) +
   labs(color="Red list species and neophytes", fill="Management",
-       x="CCA1 (3.6 %)", y="CCA2 (3.1 %)")
+       x="CCA1 (3.8 %)", y="CCA2 (3.4 %)")
+
+
 
 
 print(plot2)

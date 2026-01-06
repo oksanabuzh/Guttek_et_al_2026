@@ -8,9 +8,33 @@ library(ggrepel)
 # data
 
 ## Functional composition data (CWM for each trait modality) ----
+## Functional composition data (CWM for each trait modality) ----
+FuncComp_all <-read.csv("data/processed_data/CWM_FunctCompos_1m2.csv") %>% 
+  unite(Plot, PlotNo, Subplot, Month, remove = TRUE) 
+
+names(FuncComp_all)
+
+ggcorrplot::ggcorrplot(round(cor(FuncComp_all %>% select(-Plot),method = c("pearson"), use = "pairwise.complete.obs"), 2),
+                       hc.order = F, type = "lower",
+                       lab = TRUE, lab_size = 3,
+                       colors = c("red", "white", "blue"))
+
+
 FuncComp <-read.csv("data/processed_data/CWM_FunctCompos_1m2.csv") %>% 
   unite(Plot, PlotNo, Subplot, Month, remove = TRUE) %>% 
+  select(-starts_with("raunkiaer_"),
+         -starts_with("lifeform_"),
+         # -status_NotEndangered,
+         # -Mowing.Frequency, 
+         -Disturbance.Frequency,-Disturbance.Severity, -Grazing.Pressure, -Soil.Disturbance) %>%
   column_to_rownames("Plot")
+
+names(FuncComp)
+
+ggcorrplot::ggcorrplot(round(cor(FuncComp, method = c("pearson"), use = "pairwise.complete.obs"), 2),
+                       hc.order = F, type = "lower",
+                       lab = TRUE, lab_size = 3,
+                       colors = c("red", "white", "blue"))
 
 ## predictor data ----
 # mowing data
@@ -56,7 +80,7 @@ decorana((FuncComp))
 
 # we would use CCA to be consistent with all other analysis
 
-
+# CCA -----
 set.seed(1)
 ord_mod <-  cca(FuncComp ~ # MowFreq:Month + 
                   MowFreq + Month + 
@@ -109,23 +133,24 @@ sp.scrs <- scores(ord_mod, display = "species",
     Trait_group == "lifespan" ~ "Lifespan",
     Trait_group == "lifeform" ~ "Life form",
     Trait_group == "raunkiaer" ~ "Raunkiaer life form",
-    is.na(Trait_group) ~ "Disturbance indicator",
+    is.na(Trait_group) ~ "Disturbance indicator species",
     Trait_group =="status" ~ "Red-list / aliens")) %>% 
   mutate(Trait_modality=case_when(
-    Trait_modality == "NotEndangered" ~ "least-concern",
+    Trait_modality == "NotEndangered" ~ "least-concerned",
     Trait_modality == "Endangered" ~ "endangered",
     Trait_modality == "Warning" ~ "vulnerable",
     Trait_modality == "Neophyte" ~ "neophyte",
     Trait_modality == "tree.shrub" ~ "tree/shrub",
     Trait_modality == "herbPoli" ~ "herb.polyc",
     Trait_modality == "herbMono" ~ "herb.monoc",
-    Trait_modality == "Disturbance.Severity" ~ "Distr.Severity",
+    Trait_modality == "shortlived" ~ "short-lived",
+    Trait_modality == "other_forb" ~ "other forb",
+        Trait_modality == "Disturbance.Severity" ~ "Distr.Severity",
     Trait_modality == "Disturbance.Frequency" ~ "Distr.Frequency",
-    Trait_modality == "Mowing.Frequency" ~ "Mowing.Distr",
+    Trait_modality == "Mowing.Frequency" ~ "mowing-disturbance species",
     Trait_modality == "Grazing.Pressure" ~ "Grazing.Distr",
     Trait_modality == "Soil.Disturbance" ~ "Soil.Distr",
-    .default=Trait_modality)) %>%
-    print(n=Inf)
+    .default=Trait_modality)) 
 
 sp.scrs
 
@@ -196,6 +221,7 @@ plot.scrs <- plot.scrs %>%
 
 plot.scrs
 
+# plots -----
 set.seed(11)
 # plot for plots data
 plot1 <- ggplot(data=plot.scrs, 
@@ -226,7 +252,7 @@ plot1 <- ggplot(data=plot.scrs,
                   size=5, fontface="bold", show_guide = F) +
   theme_bw()+
   scale_color_manual(values = c("#F8766D", "#00B0F6","#00BA38"))+
-  labs(color="Management",  x=" CCA1 (9.3 %)", y=" CCA2 (5.8 %)")
+  labs(color="Management",  x=" CCA1 (12.1 %)", y=" CCA2 (6.3 %)")
 
 print(plot1)
 
@@ -234,7 +260,7 @@ print(plot1)
 # ggsave(" CCA_plot1.png", plot1, width = 6, height = 6, dpi = 350)
 # ggsave(" CCA_plot1.jpeg", plot1, width = 6, height = 6, dpi = 350)
 
-# plot for species data
+## plot for species data ----
 set.seed(11)
 plot2 <- ggplot(data=plot.scrs, 
                 aes(x= CCA1, y= CCA2))+
@@ -247,19 +273,20 @@ plot2 <- ggplot(data=plot.scrs,
                level=0.95, # ellipses represent a 95% confidence interval for the multivariate mean of each group) +
                color="gray88") +
   # vector
-#  geom_segment(data=vector.scrs, 
-#               aes(x=0, y=0, xend=CCA1, yend=CCA2), 
-#               arrow=arrow(length=unit(0.3,"cm")), 
-#               color="gray23", linewidth=1) +
-#  geom_text_repel(data=vector.scrs, 
-#                  aes(CCA1, CCA2, label="Mowing"), 
-#                  color="black", fontface="bold", 
-#                  size=5, max.overlaps = Inf) +
+ geom_segment(data=vector.scrs, 
+               aes(x=0, y=0, xend=CCA1, yend=CCA2), 
+               arrow=arrow(length=unit(0.3,"cm")), 
+               color="gray23", linewidth=1) +
+
+  geom_text(data=vector.scrs, 
+                  aes(CCA1, CCA2, label="Mowing"), 
+                  color="black", fontface="bold", 
+                  size=5, hjust=0.5, vjust=-0.5) +
   # species
   geom_point(data=sp.scrs, 
              aes(x= CCA1, y= CCA2, color=Trait_group), 
-             size = 0.5,  
-             alpha=0.8, pch=19)+
+             size = 3,  
+             alpha=1, pch=8)+
   geom_text_repel(data=sp.scrs, 
                   aes(x= CCA1, y= CCA2, color=Trait_group,
                       label = Trait_modality), 
@@ -273,12 +300,12 @@ plot2 <- ggplot(data=plot.scrs,
     "reduced mowing & sowing" = "green3" #"#00BA38" # "#00B0F6"
   )) +
    labs(color="Functional category", fill="Management",
-        x=" CCA1 (9.3 %)", y=" CCA2 (5.8 %)")
+        x="CCA1 (12.1 %)", y=" CCA2 (6.3 %)")
 
 
 print(plot2)
 
-# plot for species data
+## month plot for traits data -----
 set.seed(11)
 plot3 <- ggplot(data=plot.scrs, 
                 aes(x= CCA1, y= CCA2))+
@@ -293,8 +320,8 @@ plot3 <- ggplot(data=plot.scrs,
     # species
   geom_point(data=sp.scrs, 
              aes(x= CCA1, y= CCA2, color=Trait_group,), 
-             size = 0.5,  
-             alpha=0.8, pch=19)+
+             size = 3,  
+             alpha=1, pch=8)+
   geom_text_repel(data=sp.scrs, 
                   aes(x= CCA1, y= CCA2, label = Trait_modality, 
                       color=Trait_group), 
@@ -308,9 +335,10 @@ plot3 <- ggplot(data=plot.scrs,
       "July" = "#6D326D",
       "September"="brown"
     )) +
-  labs(fill="Month", color="Functional category",
-       x=" CCA1 (9.3 %)", y=" CCA2 (5.8 %)")
+  labs(color="Functional category", fill="Month", 
+       x="CCA1 (12.1 %)", y=" CCA2 (6.3 %)")
 
 
 print(plot3)
+
 
