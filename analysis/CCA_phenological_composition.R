@@ -62,9 +62,8 @@ anyNA(Phenophase_compos) # no NA's
 decorana((Phenophase_compos)) 
 #  <3 -> linear methods  are  applicable as axis lengths for DCA1 is <3
 
-# CCA
 
-
+# CCA -----
 set.seed(1)
 ord_mod <-  cca(Phenophase_compos ~ #MowFreq:Month + 
                   MowFreq + Month + 
@@ -183,8 +182,11 @@ plot.scrs <- plot.scrs %>%
 
 plot.scrs
 
+
+# plot  results -----
+
+## plot for plots data
 set.seed(11)
-# plot for plots data
 plot1 <- ggplot(data=plot.scrs, 
                 aes(x= CCA1, y= CCA2))+
   geom_hline(yintercept = 0, color="grey", lty =1) +
@@ -213,7 +215,7 @@ plot1 <- ggplot(data=plot.scrs,
                   size=5, fontface="bold", show_guide = F) +
   theme_bw()+
   scale_color_manual(values = c("#F8766D", "#00B0F6","#00BA38"))+
-  labs(color="Management",  x=" CCA1 (14.8 %)", y=" CCA2 (3.4 %)")
+  labs(color="Management",  x="CCA1 (29.8 %)", y=" CCA2 (7.5 %)")
 
 
 print(plot1)
