@@ -57,27 +57,31 @@ anyNA(Phenophase_compos) # no NA's
 # check gradient length of first DCA axis (optional)
 # if axis lengths for DCA1 is 
 # <3 -> linear methods (PCA)
-# >3 -> nonlinear methods (CCA)
+# >3 -> nonlinear methods (RDA)
 # in any case non metric distance based methods can be used (NMDS or PCoA)
 decorana((Phenophase_compos)) 
 #  <3 -> linear methods  are  applicable as axis lengths for DCA1 is <3
 
 
-# CCA -----
+# RDA analysis -----
+Phenophase_compos_hell <- decostand(Phenophase_compos, method = "hellinger")
+Phenophase_compos_log <- log1p(Phenophase_compos) 
+
+
 set.seed(1)
-ord_mod <-  cca(Phenophase_compos ~ #MowFreq:Month + 
+ord_mod <-  rda(Phenophase_compos_log ~ #MowFreq:Month + 
                   MowFreq + Month + 
                   n_mow_events_befre_sampling, data = predictor_data,
                 scale = FALSE) # scale data to have the same units
 ord_mod
 ord_effects <- anova(ord_mod, strata = as.factor(predictor_data$PlotNo), # random effects
-      by= "terms") # each term (sequentially from first to last), depends on the order
+                     by= "terms") # each term (sequentially from first to last), depends on the order
 
 ord_effects
 
 
 vif.cca(ord_mod)
-# proportion variance explained by CCA axes
+# proportion variance explained by RDA axes
 summary(eigenvals(ord_mod))
 # adjusted R2
 RsquareAdj(ord_mod)
@@ -94,11 +98,11 @@ write_csv(Mod_sign %>%
             as_tibble(rownames = "Predictors") %>% 
             filter(Predictors!="Residual") %>%
             mutate(Model_R2=RsquareAdj(ord_mod)[[2]],
-                   CCA1.Prop.Explained=summary(eigenvals(ord_mod))[[2,1]],
-                   CCA2.Prop.Explained=summary(eigenvals(ord_mod))[[2,2]]) %>% 
+                   RDA1.Prop.Explained=summary(eigenvals(ord_mod))[[2,1]],
+                   RDA2.Prop.Explained=summary(eigenvals(ord_mod))[[2,2]]) %>% 
             bind_rows(ord_effects %>% 
-                as_tibble(rownames = "Predictors")),
-          "results/CCA_phenology_results.csv")
+                        as_tibble(rownames = "Predictors")),
+          "results/RDA_phenology_results.csv")
 
 
 # extract species scores
@@ -126,7 +130,7 @@ plot.scrs
 
 # vector 
 vector.scrs <- scores(ord_mod, display = "bp", # vector
-                    scaling = "species") %>% 
+                      scaling = "species") %>% 
   as_tibble(rownames = "Plot") %>% 
   filter(Plot=="n_mow_events_befre_sampling")  
 
@@ -141,8 +145,8 @@ centroid_mowing <- scores(ord_mod,
   filter(str_detect(treatment, "MowFreq")) %>% 
   mutate(MowFreq=stringr::str_sub(treatment, 8)) %>% 
   dplyr::select(-treatment) %>% 
-  rename( CCA1_mowing= CCA1,
-          CCA2_mowing= CCA2)
+  rename( RDA1_mowing= RDA1,
+          RDA2_mowing= RDA2)
 
 centroid_mowing
 
@@ -153,16 +157,16 @@ centroid_month <- scores(ord_mod,
   filter(str_detect(treatment, "Month")) %>% 
   mutate(Month=stringr::str_sub(treatment, 6)) %>% 
   dplyr::select(-treatment) %>% 
-  rename( CCA1_month= CCA1,
-          CCA2_month= CCA2)
+  rename( RDA1_month= RDA1,
+          RDA2_month= RDA2)
 
 centroid_month
 
 # centroid for interaction from raw data
 centroids <- plot.scrs %>% 
   group_by(MowFreq, Month) %>% 
-  summarise( CCA1_centroid=mean( CCA1),
-             CCA2_centroid=mean( CCA2)) %>% 
+  summarise( RDA1_centroid=mean( RDA1),
+             RDA2_centroid=mean( RDA2)) %>% 
   ungroup() %>% 
   left_join(centroid_mowing, by=c("MowFreq")) %>% 
   left_join(centroid_month, by=c("Month")) %>%
@@ -185,49 +189,48 @@ plot.scrs
 
 # plot  results -----
 
-## plot for plots data
+## plot for plots data -----
 set.seed(11)
 plot1 <- ggplot(data=plot.scrs, 
-                aes(x= CCA1, y= CCA2))+
+                aes(x= RDA1, y= RDA2))+
   geom_hline(yintercept = 0, color="grey", lty =1) +
   geom_vline(xintercept = 0, color="grey", lty =1) +
   # spiders
   
   geom_segment(data = plot.scrs,        
-               mapping = aes(xend =  CCA1_centroid, yend =  CCA2_centroid, 
+               mapping = aes(xend =  RDA1_centroid, yend =  RDA2_centroid, 
                              color=Mowing),
                alpha=0.9) +
   # add plot scores as point:
   geom_point(data=plot.scrs, 
-             aes(x= CCA1, y= CCA2, 
+             aes(x= RDA1, y= RDA2, 
                  color=Mowing),
              size=1.5, pch=21) + 
   # add centroids as point:
   geom_point(data=plot.scrs, 
-             aes(x= CCA1_centroid, y= CCA2_centroid, 
+             aes(x= RDA1_centroid, y= RDA2_centroid, 
                  color=Mowing),
              size=3, pch=18) + 
   # centroids as text
   geom_text_repel(data=centroids, 
                   #geom_text(data=centroids, 
-                  aes(x= CCA1_centroid, y= CCA2_centroid, 
+                  aes(x= RDA1_centroid, y= RDA2_centroid, 
                       color=Mowing, label = Month), 
                   size=5, fontface="bold", show_guide = F) +
   theme_bw()+
   scale_color_manual(values = c("#F8766D", "#00B0F6","#00BA38"))+
-  labs(color="Management",  x="CCA1 (29.8 %)", y=" CCA2 (7.5 %)")
-
+  labs(color="Management",  x="RDA1 (41.0 %)", y=" RDA2 (4.6 %)")
 
 print(plot1)
 
 
-# ggsave(" CCA_plot1.png", plot1, width = 6, height = 6, dpi = 350)
-# ggsave(" CCA_plot1.jpeg", plot1, width = 6, height = 6, dpi = 350)
+# ggsave(" RDA_plot1.png", plot1, width = 6, height = 6, dpi = 350)
+# ggsave(" RDA_plot1.jpeg", plot1, width = 6, height = 6, dpi = 350)
 
-# plot for species data
+## mowing plot for species data ----
 set.seed(11)
 plot2 <- ggplot(data=plot.scrs, 
-                aes(x= CCA1, y= CCA2))+
+                aes(x= RDA1, y= RDA2))+
   geom_hline(yintercept = 0, color="grey", lty =1) +
   geom_vline(xintercept = 0, color="grey", lty =1) +
   # ellipse 
@@ -238,20 +241,20 @@ plot2 <- ggplot(data=plot.scrs,
                color="gray88") +
   # vector
   geom_segment(data=vector.scrs, 
-               aes(x=0, y=0, xend=CCA1, yend=CCA2), 
+               aes(x=0, y=0, xend=RDA1, yend=RDA2), 
                arrow=arrow(length=unit(0.3,"cm")), 
                color="gray23", linewidth=1) +
-  geom_text_repel(data=vector.scrs, 
-                  aes(CCA1, CCA2, label="Mowing"), 
-                  color="black", fontface="bold", 
-                  size=5, max.overlaps = Inf) +
+  geom_text(data=vector.scrs, 
+            aes(RDA1, RDA2, label="Mowing"), 
+            color="black", fontface="bold", 
+            size=5, hjust=0.3, vjust=-0.3) +
   # species
   geom_point(data=sp.scrs, 
-             aes(x= CCA1, y= CCA2), 
+             aes(x= RDA1, y= RDA2), 
              size = 3,  
              alpha=1, pch=8, color="red4")+
   geom_text_repel(data=sp.scrs, color="red4",
-                  aes(x= CCA1, y= CCA2, label = Phenophase), 
+                  aes(x= RDA1, y= RDA2, label = Phenophase), 
                   size=4, fontface="bold", show_guide = F,
                   max.overlaps=Inf) +
   theme_bw()+
@@ -261,15 +264,16 @@ plot2 <- ggplot(data=plot.scrs,
     "reduced mowing" = "#00B0F8", # "#00B0F6",  #"yellow3",
     "reduced mowing & sowing" = "green3" #"#00BA38" # "#00B0F6"
   )) +
-   labs(color="Red list species and neophytes", fill="Management",
-        x=" CCA1 (29.8 %)", y=" CCA2 (7.5 %)")
+  labs(color="Red list species and neophytes", fill="Management",
+       x="RDA1 (41.0 %)", y=" RDA2 (4.6 %)") +
+  ylim(-0.7, 0.91)
 
 print(plot2)
 
 # plot for species data
 set.seed(11)
 plot3 <- ggplot(data=plot.scrs, 
-                aes(x= CCA1, y= CCA2))+
+                aes(x= RDA1, y= RDA2))+
   geom_hline(yintercept = 0, color="grey", lty =1) +
   geom_vline(xintercept = 0, color="grey", lty =1) +
   # ellipse 
@@ -278,25 +282,25 @@ plot3 <- ggplot(data=plot.scrs,
                linewidth =0.0001, geom="polygon",
                level=0.95, # ellipses represent a 95% confidence interval for the multivariate mean of each group) +
                color="gray88") +
-    # species
+  # species
   geom_point(data=sp.scrs, 
-             aes(x= CCA1, y= CCA2), 
+             aes(x= RDA1, y= RDA2), 
              size = 0.5,  
              alpha=0.8, pch=19)+
   geom_text_repel(data=sp.scrs, 
-                  aes(x= CCA1, y= CCA2, label = Phenophase), 
+                  aes(x= RDA1, y= RDA2, label = Phenophase), 
                   size=4, fontface="bold", show_guide = F,
                   max.overlaps=Inf) +
   theme_bw()+
   guides(color = guide_legend(override.aes = list(size = 3))) + # makes legend dots large
-    scale_fill_manual(values = c(
-      "March" = "orange",
-      "May" = "#287271",
-      "July" = "#6D326D",
-      "September"="brown"
-    )) +
+  scale_fill_manual(values = c(
+    "March" = "orange",
+    "May" = "#287271",
+    "July" = "#6D326D",
+    "September"="brown"
+  )) +
   labs(fill="Month",
-       x=" CCA1 (29.8 %)", y=" CCA2 (7.5 %)")
+       x="RDA1 (41.0 %)", y=" RDA2 (4.6 %)")
 
 
 print(plot3)
