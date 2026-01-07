@@ -92,14 +92,31 @@ Diversity_phenology_1m2 <- Composition_1m2 %>%
          ShortLived_SR_propor = ShortLived_SR / SR,
          Perennials_SR_propor = Perennials_SR / SR,
          Neophytes_SR_propor = Neophytes_SR / SR,
-         Endangereds_SR_propor = Endangereds_SR / SR)
+         Endangereds_SR_propor = Endangereds_SR / SR) %>% 
+  # Phenological diversity 
+  rowwise() %>%
+  mutate(
+    phen_Richness = sum(c_across(c(Vegetative_cover,
+                                   Seedling_cover,	Juvenile_cover,FlowerBud_cover,
+                                   Flowering_cover,	Fruiting_cover,	PostFruiting_cover)) > 0),
+    
+    phen_Shannon = exp(vegan::diversity(
+      c_across(c(Vegetative_cover, Seedling_cover,	Juvenile_cover,
+                 FlowerBud_cover, Flowering_cover,	Fruiting_cover,	
+                 PostFruiting_cover)), index = "shannon")),
+    phen_evenness = vegan::diversity(
+      c_across(c(Vegetative_cover, Seedling_cover,	Juvenile_cover,
+                 FlowerBud_cover, Flowering_cover,	Fruiting_cover,	
+                 PostFruiting_cover)), index = "invsimpson"),
+    .after = "height_max") %>% 
+  ungroup()
 
 Diversity_phenology_1m2
 
-# Phenological diversity -----------------------------------------------------
+#  Warning message concerns height_max, it get -Inf as no measurements were present for the plot
+
 
 write_csv(Diversity_phenology_1m2, "data/processed_data/Diversity_phenology_1m2.csv")
-
 
 
 
@@ -167,6 +184,11 @@ write_csv(as.data.frame(FuncComp) %>%
 # When calculating functional diversity, FD::dbFD Error occurs when mixed categorical and numeric traits
 # thus, convert categorical traits to wide format for each category
 Func_groups_modif <- Func_groups %>% 
+  select(-starts_with("raunkiaer_"), # correlate strongly with lifespan
+         -starts_with("lifeform_"),  # correlate strongly with lifespan
+         # exclude all disturb indic for calculating functional diversity
+         -Disturbance.Frequency,-Disturbance.Severity,  
+         -Mowing.Frequency, -Grazing.Pressure, -Soil.Disturbance) %>%
   rownames_to_column("Taxon") %>%
   # for column status, create wide format 
   mutate(present = 1) %>%
