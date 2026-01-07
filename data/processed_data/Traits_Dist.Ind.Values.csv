@@ -25,10 +25,10 @@ Malva alcea,Malva alcea,Endangered,Endangered_3,other_forb,0,0,1,0,0,1,0,0,0,0,0
 Salvia pratensis,Salvia pratensis,Endangered,Endangered_NA,other_forb,0,0,1,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0.50721,1.21812,0.85158,0.24893,0.19939
 Carduus,Carduus,NA,NA,other_forb,0,1,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,NA,NA,NA,NA,NA
 Carex,Carex,NA,NA,graminoid,0,0,1,0,0,1,1,0,0,0,0,0,1,0,0,0,0,NA,NA,NA,NA,NA
-Corydalis,Corydalis,NA,NA,other_forb,0,0,1,0,0,0,1,0,0,0,0,0,1,0,0,0,0,NA,NA,NA,NA,NA
+Corydalis,Corydalis,NA,NA,other_forb,0,0,1,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0.69047,0.0565,0.01369,0.18361,0.1045
 Leontodon,Leontodon,NA,NA,other_forb,0,0,1,0,0,1,0,0,0,0,0,0,1,0,0,0,0,NA,NA,NA,NA,NA
 Myosotis,Myosotis,NA,NA,other_forb,1,1,0,0,0,1,0,0,1,0,0,0,0,1,0,0,0,NA,NA,NA,NA,NA
-Rubus,Rubus,NA,NA,woody,0,0,1,1,1,0,0,0,0,0,1,1,0,0,0,0,0,NA,NA,NA,NA,NA
+Rubus,Rubus,NA,NA,woody,0,0,1,1,1,0,0,0,0,0,1,1,0,0,0,0,0,0.60499,0.36505,0.13192,0.19582,0.16678
 Arrhenatherum elatius,Arrhenatherum elatius,Neophyte,Neophyte,graminoid,0,0,1,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0.52944,1.1288,0.82465,0.16914,0.30679
 Berteroa incana,Berteroa incana,Neophyte,Neophyte,other_forb,1,1,0,0,0,1,0,0,1,0,0,0,0,1,0,0,0,0.6477,1.25863,0.75992,0.21418,0.32156
 Cardamine hirsuta,Cardamine hirsuta,Neophyte,Neophyte,other_forb,1,1,0,0,0,1,0,0,1,0,0,0,0,1,0,0,0,0.59769,0.64594,0.28825,0.22901,0.32316
@@ -41,10 +41,10 @@ Erigeron annuus,Erigeron annuus,Neophyte,Neophyte,other_forb,1,1,0,0,0,1,0,0,1,0
 Conyza canadensis,Erigeron canadensis,Neophyte,Neophyte,other_forb,1,0,0,0,0,0,0,0,1,0,0,0,0,1,0,0,0,0.71321,1.29546,0.62188,0.18605,0.48742
 Galanthus nivalis,Galanthus nivalis,Neophyte,Neophyte,other_forb,0,0,1,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0.69442,0.05582,0.01141,0.18333,0.10382
 Helianthus tuberosus,Helianthus tuberosus,Neophyte,Neophyte,other_forb,0,0,1,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0.66714,1.0424,0.54646,0.201,0.27434
-Medicago sativa,Medicago sativa,Neophyte,Neophyte,legume,0,0,1,0,0,1,0,0,0,0,0,0,1,0,0,0,0,NA,NA,NA,NA,NA
+Medicago sativa,Medicago sativa,Neophyte,Neophyte,legume,0,0,1,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0.56521,1.82936,1.1549,0.17317,0.33783
 Narcissus,Narcissus,Neophyte,Neophyte,other_forb,0,0,1,0,0,0,1,0,0,0,0,0,1,0,0,0,0,NA,NA,NA,NA,NA
 Oenothera biennis,Oenothera biennis,Neophyte,Neophyte,other_forb,0,1,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0.62605,1.31178,0.59842,0.18514,0.33864
-Scilla siberica,Othocallis siberica,Neophyte,Neophyte,other_forb,0,0,1,0,0,0,1,0,0,0,0,0,1,0,0,0,0,NA,NA,NA,NA,NA
+Scilla siberica,Othocallis siberica,Neophyte,Neophyte,other_forb,0,0,1,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0.695,0.05623,0.0142,0.20667,0.10333
 Oxalis corniculata,Oxalis corniculata,Neophyte,Neophyte,other_forb,1,1,0,0,0,1,1,0,1,0,0,0,0,1,0,0,0,0.76637,0.78647,0.56568,0.18972,0.47454
 Scilla bifolia,Scilla bifolia,Neophyte,Neophyte,other_forb,0,0,1,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0.68877,0.04325,0.01068,0.19505,0.10392
 Sedum album,Sedum album,Neophyte,Neophyte,other_forb,0,0,1,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0.4586,0.91458,0.13464,0.30586,0.2467
@@ -74,7 +74,7 @@ Campanula rapunculoides,Campanula rapunculoides,NotEndangered,NotEndangered,othe
 Carex hirta,Carex hirta,NotEndangered,NotEndangered,graminoid,0,0,1,0,0,1,1,0,0,0,0,0,1,0,0,0,0,0.52271,1.29975,0.85594,0.32101,0.24412
 Carex muricata,Carex muricata,NotEndangered,NotEndangered,graminoid,0,0,1,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0.62769,0.22741,0.17474,0.20497,0.17303
 Centaurea stoebe,Centaurea stoebe,NotEndangered,NotEndangered,other_forb,0,1,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0.48166,1.39545,0.48222,0.31755,0.20644
-Cerastium,Cerastium,NotEndangered,NotEndangered,other_forb,1,0,0,0,0,0,0,0,1,0,0,0,0,1,0,0,0,NA,NA,NA,NA,NA
+Cerastium,Cerastium,NotEndangered,NotEndangered,other_forb,1,0,0,0,0,0,0,0,1,0,0,0,0,1,0,0,0,0.46249,1.39189,0.38437,0.30571,0.38883
 Cerastium holosteoides,Cerastium fontanum subsp. vulgare,NotEndangered,NotEndangered,other_forb,0,1,1,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0.52096,1.6913,0.99164,0.33346,0.36216
 Cerastium glomeratum,Cerastium glomeratum,NotEndangered,NotEndangered,other_forb,1,0,0,0,0,0,0,0,1,0,0,0,0,1,0,0,0,0.67083,1.24583,0.56795,0.28417,0.48569
 Cerastium glutinosum,Cerastium pumilum subsp. glutinosum,NotEndangered,NotEndangered,other_forb,1,0,0,0,0,0,0,0,1,0,0,0,0,1,0,0,0,0.52614,1.55739,0.39075,0.35258,0.30733
@@ -96,7 +96,7 @@ Erodium cicutarium,Erodium cicutarium,NotEndangered,NotEndangered,other_forb,1,0
 Festuca ovina,Festuca ovina,NotEndangered,NotEndangered,graminoid,0,0,1,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0.52087,0.57174,0.29247,0.27496,0.19646
 Festuca rubra,Festuca rubra,NotEndangered,NotEndangered,graminoid,0,0,1,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0.49144,1.23162,0.61897,0.28728,0.29737
 Ficaria verna,Ficaria verna,NotEndangered,NotEndangered,other_forb,0,0,1,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0.66551,0.17419,0.08796,0.19647,0.14036
-Galium album,Galium album,NotEndangered,NotEndangered,other_forb,0,0,1,0,0,1,0,0,0,0,0,0,1,0,0,0,0,NA,NA,NA,NA,NA
+Galium album,Galium album,NotEndangered,NotEndangered,other_forb,0,0,1,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0.54405,0.70503,0.49706,0.18636,0.24515
 Galium verum,Galium verum,NotEndangered,NotEndangered,other_forb,0,0,1,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0.50155,1.19593,0.70249,0.27259,0.24586
 Geranium molle,Geranium molle,NotEndangered,NotEndangered,other_forb,1,0,0,0,0,0,0,0,1,0,0,0,0,1,0,0,0,0.62987,1.27995,0.6275,0.3036,0.42608
 Geum urbanum,Geum urbanum,NotEndangered,NotEndangered,other_forb,0,0,1,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0.67742,0.14546,0.06547,0.19208,0.12644
@@ -150,8 +150,8 @@ Setaria viridis,Setaria viridis,NotEndangered,NotEndangered,graminoid,1,0,0,0,0,
 Melandrium album,Silene latifolia,NotEndangered,NotEndangered,other_forb,0,1,0,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0.70633,0.84477,0.49804,0.1651,0.39904
 Stellaria media,Stellaria media,NotEndangered,NotEndangered,other_forb,1,1,0,0,0,1,0,0,1,0,0,0,0,1,0,0,0,0.70945,0.80583,0.43958,0.26577,0.51423
 Tanacetum vulgare,Tanacetum vulgare,NotEndangered,NotEndangered,other_forb,0,0,1,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0.62289,1.15194,0.69874,0.1726,0.30211
-Taraxacum,Taraxacum,NotEndangered,NotEndangered,other_forb,0,0,1,0,0,1,0,0,0,0,0,0,1,0,0,0,0,NA,NA,NA,NA,NA
-Tragopogon,Tragopogon,NotEndangered,NotEndangered,other_forb,0,1,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,NA,NA,NA,NA,NA
+Taraxacum,Taraxacum,NotEndangered,NotEndangered,other_forb,0,0,1,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0.58586,1.09148,0.73778,0.26697,0.37503
+Tragopogon,Tragopogon,NotEndangered,NotEndangered,other_forb,0,1,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0.50996,1.77695,1.26941,0.17348,0.31239
 Trifolium arvense,Trifolium arvense,NotEndangered,NotEndangered,legume,1,0,0,0,0,0,0,0,1,0,0,0,0,1,0,0,0,0.53746,1.32442,0.5926,0.30223,0.35081
 Trifolium campestre,Trifolium campestre,NotEndangered,NotEndangered,legume,1,0,0,0,0,0,0,0,1,0,0,0,0,1,0,0,0,0.57992,1.07112,0.55737,0.29518,0.30954
 Trifolium dubium,Trifolium dubium,NotEndangered,NotEndangered,legume,1,0,0,0,0,0,0,0,1,0,0,0,0,1,0,0,0,0.50969,1.97957,1.1694,0.28385,0.36995
@@ -162,7 +162,7 @@ Verbascum lychnitis,Verbascum lychnitis,NotEndangered,NotEndangered,other_forb,0
 Veronica arvensis,Veronica arvensis,NotEndangered,NotEndangered,other_forb,1,0,0,0,0,0,0,0,1,0,0,0,0,1,0,0,0,0.64871,1.70759,0.56937,0.21649,0.54803
 Veronica chamaedrys,Veronica chamaedrys,NotEndangered,NotEndangered,other_forb,0,0,1,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0.56883,0.49917,0.41638,0.18856,0.24929
 Veronica serpyllifolia,Veronica serpyllifolia,NotEndangered,NotEndangered,other_forb,0,0,1,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0.5318,1.29074,0.808,0.3645,0.36613
-Veronica sublobata,Veronica sublobata,NotEndangered,NotEndangered,other_forb,1,0,0,0,0,0,0,0,1,0,0,0,0,1,0,0,0,NA,NA,NA,NA,NA
+Veronica sublobata,Veronica sublobata,NotEndangered,NotEndangered,other_forb,1,0,0,0,0,0,0,0,1,0,0,0,0,1,0,0,0,0.78059,0.54418,0.26733,0.16232,0.54354
 Vicia cracca,Vicia cracca,NotEndangered,NotEndangered,legume,0,0,1,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0.53608,1.16111,0.83269,0.18265,0.29238
 Vicia hirsuta,Vicia hirsuta,NotEndangered,NotEndangered,legume,1,0,0,0,0,0,0,0,1,0,0,0,0,1,0,0,0,0.69216,1.32487,0.49303,0.16764,0.56484
 Vicia lathyroides,Vicia lathyroides,NotEndangered,NotEndangered,legume,1,0,0,0,0,0,0,0,1,0,0,0,0,1,0,0,0,0.46977,1.10195,0.42632,0.30568,0.32815

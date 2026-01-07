@@ -129,8 +129,18 @@ disturbance_indic <- read_csv("data/raw_data/disturbance_indicator_values_Midolo
                   Mowing.Frequency, Grazing.Pressure, Soil.Disturbance) %>% 
   rename("EuroMed"=species_corrected_OB)
 
+# some taxa are missing in Midolo_et_al_2022. Below some of the taxa are added manually by Dariia Borovyk:
+Missing_taxa <- read_csv("data/raw_data/missing_taxa_for_disturbance_indicators_addedd_DB.csv") %>% 
+  select(EuroMed, Disturbance.Severity, Disturbance.Frequency, 
+         Mowing.Frequency, Grazing.Pressure, Soil.Disturbance)
+names(Missing_taxa)
+
+disturbance_indic_new <- disturbance_indic %>% 
+  bind_rows(Missing_taxa) 
+
+
 traits <- trait_data %>% 
-  left_join(disturbance_indic, by = "EuroMed") 
+  left_join(disturbance_indic_new, by = "EuroMed") 
 
 write_csv(traits, "data/processed_data/Traits_Dist.Ind.Values.csv")
 
@@ -143,7 +153,7 @@ missing_Taxa <- traits%>%
       "Mowing.Frequency", "Grazing.Pressure", "Soil.Disturbance")),
     is.na)) %>% print(n=Inf)
 
-missing_Taxa
+missing_Taxa # taxa missing disturbance indicator values
 
 # write_csv(missing_Taxa, "data/missing_taxa_for_disturbance_indicators.csv")
 
