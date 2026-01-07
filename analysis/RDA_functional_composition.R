@@ -79,6 +79,7 @@ decorana((FuncComp))
 
 # we would use CCA to be consistent with all other analysis
 
+# RDA analysis -----
 FuncComp_hell <- decostand(FuncComp, method = "hellinger")
 FuncComp_log <- log1p(FuncComp) 
 
@@ -222,8 +223,10 @@ plot.scrs <- plot.scrs %>%
 
 plot.scrs
 
+# plot for plots data ----
+
+## plot for site data -----
 set.seed(11)
-# plot for plots data
 plot1 <- ggplot(data=plot.scrs, 
                 aes(x= RDA1, y= RDA2))+
   geom_hline(yintercept = 0, color="grey", lty =1) +
@@ -261,7 +264,7 @@ print(plot1)
 # ggsave(" RDA_plot1.png", plot1, width = 6, height = 6, dpi = 350)
 # ggsave(" RDA_plot1.jpeg", plot1, width = 6, height = 6, dpi = 350)
 
-# plot for species data
+## mowing plot for species data -----
 set.seed(11)
 plot2 <- ggplot(data=plot.scrs, 
                 aes(x= RDA1, y= RDA2))+
