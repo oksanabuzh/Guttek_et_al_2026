@@ -161,9 +161,11 @@ missing_Taxa <- traits%>%
   filter(if_any(all_of(
     c("Disturbance.Severity", "Disturbance.Frequency",
       "Mowing.Frequency", "Grazing.Pressure", "Soil.Disturbance")),
-    is.na)) %>% print(n=Inf)
+    is.na)) 
 
-missing_Taxa # taxa missing disturbance indicator values
+
+missing_Taxa %>%   # taxa missing disturbance indicator values
+  print(n=Inf) 
 
 # write_csv(missing_Taxa, "data/missing_taxa_for_disturbance_indicators.csv")
 
