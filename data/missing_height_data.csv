@@ -1,0 +1,82 @@
+PlotNo,Month,Taxon,cover10m2,height,Seedling,Juvenile,FlowerBud,Flowering,Fruiting,PostFruiting,Vegetative
+BC01,March,Hypericum perforatum,0.1,NA,0,0,0,0,0,0,1
+BC01,March,Crepis capillaris,0.5,NA,0,0,0,0,0,0,1
+BC01,March,Plantago lanceolata,1,NA,0,0,0,0,0,0,1
+BC01,July,Festuca rubra,12,NA,0,0,0,0,0,0,1
+BC02,March,Medicago sativa,1,NA,0,0,0,0,0,0,1
+BC02,March,Poa pratensis,2,NA,0,0,0,0,0,0,1
+BC02,March,Stellaria media,0.5,NA,0,0,0,1,0,0,0
+BC02,March,Taraxacum,0.01,NA,0,0,0,0,0,0,1
+BC02,May,Achillea millefolium,3,NA,0,0,0,0,0,0,1
+BC02,May,Arenaria serpyllifolia,0.001,NA,0,0,0,0,1,0,0
+BC02,September,Geranium molle,5,NA,0,0,0,0,0,0,1
+BC03,March,Hypochaeris radicata,0.001,NA,0,0,0,0,0,0,1
+BC03,May,Achillea millefolium,0.001,NA,0,0,0,0,0,0,1
+BC03,May,Hypericum perforatum,0.1,NA,0,0,0,0,0,0,1
+BC03,September,Arenaria serpyllifolia,0.01,NA,1,0,0,0,0,0,0
+BC03,September,Hypochaeris radicata,0.1,NA,0,0,0,0,0,0,1
+BC04,March,Acer,0.001,NA,1,0,0,0,0,0,0
+BC04,March,Festuca ovina,5,NA,0,0,0,0,0,0,1
+BC04,March,Vicia lathyroides,0.1,NA,0,0,0,0,0,0,1
+BC04,May,Agrostis capillaris,0.001,NA,0,0,0,1,0,0,0
+BC04,September,Anchusa officinalis,0.1,NA,0,0,0,0,0,0,1
+BC05,March,Bellis perennis,0.001,NA,0,0,0,1,0,0,0
+BC05,March,Cerastium glomeratum,0.001,NA,0,0,0,0,0,0,1
+BC05,March,Echium vulgare,NA,NA,0,0,0,0,0,0,1
+BC05,March,Rumex acetosella,0.001,NA,0,0,0,0,0,0,1
+BC05,May,Acer,0.01,NA,0,0,0,0,0,0,1
+BC06,March,Hypochaeris radicata,0.2,NA,0,0,0,0,0,0,1
+BC06,March,Trifolium dubium,0.05,NA,0,0,0,0,0,0,1
+BC06,May,Bellis perennis,0.001,NA,0,0,0,0,1,0,0
+BC06,May,Cerastium holosteoides,0.001,NA,0,0,0,1,0,0,0
+BC07,March,Bromus mollis,0.001,NA,0,0,0,0,0,0,1
+BC07,March,Myosotis,0.001,NA,0,0,0,0,0,0,1
+BC07,March,Sedum acre,0.5,NA,0,0,0,0,0,0,1
+BC07,March,Senecio vulgaris,0.001,NA,0,0,0,0,0,0,1
+BC07,July,Lamium purpureum,0.01,NA,1,0,0,0,0,0,0
+BC08,March,Cerastium glutinosum,0.001,NA,0,0,0,0,0,0,1
+BC08,May,Veronica arvensis,0.1,NA,0,0,0,0,1,0,0
+BC08,September,Agrostis capillaris,0.001,NA,0,0,0,0,0,0,1
+BC08,September,Arenaria serpyllifolia,NA,NA,0,0,0,0,0,0,1
+BC08,September,Trifolium repens,NA,NA,0,0,0,0,0,0,1
+BC09,March,Bromus sterilis,0.1,NA,0,0,0,0,0,0,1
+BC09,September,Juglans regia,0.1,NA,0,0,0,0,0,0,1
+BC10,May,Festuca arundinacea,2,NA,0,0,0,1,1,0,0
+BC10,July,Artemisia vulgaris,0.001,NA,0,0,0,0,0,0,1
+BC11,March,Cerastium semidecandrum,0.01,NA,1,0,0,0,0,0,0
+BC11,March,Plantago lanceolata,0.1,NA,0,0,0,0,0,0,1
+BC11,July,Poaceae,0.001,NA,0,0,0,0,0,0,1
+BC11,September,Agrostis capillaris,0.5,NA,0,0,0,0,0,0,1
+BC11,September,Arenaria serpyllifolia,0.1,NA,1,0,0,0,0,0,0
+BC12,March,Dactylis glomerata,0.001,NA,0,0,0,0,0,0,1
+BC12,March,Lolium perenne,0.1,NA,0,0,0,0,0,0,1
+BC12,March,Plantago lanceolata,0.001,NA,0,0,0,0,0,0,1
+BC12,July,Acer,0.001,NA,1,0,0,0,0,0,0
+BC13,March,Cardamine hirsuta,0.001,NA,0,0,0,1,0,0,0
+BC13,March,Draba verna,0.01,NA,0,0,0,1,0,0,0
+BC13,March,Plantago lanceolata,0.001,NA,0,0,0,0,0,0,1
+BC13,March,Lolium perenne,0.1,NA,0,0,0,0,0,0,1
+BC14,May,Arenaria serpyllifolia,0.1,NA,0,0,0,0,0,0,1
+BC14,September,Arenaria serpyllifolia,0.1,NA,1,0,0,0,0,0,0
+BC15,May,Veronica serpyllifolia,0.01,NA,0,0,0,0,0,0,1
+BC15,September,Rumex acetosa,1,NA,0,0,0,0,0,0,1
+BC16,May,Carex caryophyllea,0.3,NA,0,0,0,1,0,0,0
+BC16,May,Potentilla argentea,0.1,NA,0,0,0,0,0,0,1
+BC16,July,Elymus repens,NA,NA,0,0,0,0,0,0,1
+BC16,July,Plantago lanceolata,NA,NA,0,0,0,0,0,0,1
+BC16,September,Trisetum flavescens,0.5,NA,0,0,0,0,0,0,1
+BC17,March,Arabidopsis thaliana,0.001,NA,0,0,0,0,0,0,1
+BC17,March,Festuca pratensis,NA,NA,0,0,0,0,0,0,1
+BC17,May,Leucanthemum vulgare,0.001,NA,0,0,0,1,0,0,0
+BC17,May,Lolium perenne,2,NA,0,0,0,1,0,0,0
+BC17,May,Medicago lupulina,0.3,NA,0,0,0,1,0,0,0
+BC17,May,Rumex acetosa,0.001,NA,0,0,0,0,0,0,1
+BC18,May,Trifolium repens,2,NA,0,0,0,0,0,0,1
+BC18,May,Hypericum perforatum,0.1,NA,0,0,0,0,0,0,1
+BC18,May,Rumex acetosa,0.5,NA,0,0,0,0,0,0,1
+BC18,May,Veronica arvensis,0.2,NA,0,0,0,0,1,0,0
+BC18,September,Medicago sativa,2,NA,0,0,0,0,1,0,0
+BC19,May,Equisetum arvense,0.001,NA,0,0,0,1,0,0,0
+BC20,March,Poa pratensis,0.001,NA,0,0,0,0,0,0,1
+BC20,May,Luzula campestris,3,NA,0,0,0,0,1,0,0
+BC20,September,Vicia hirsuta,0.5,NA,0,0,0,0,0,0,1

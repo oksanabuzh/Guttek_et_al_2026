@@ -47,8 +47,7 @@ data_10m2 <- read_csv("data/raw_data/Sampling5.0Data.csv") %>%
   mutate(cover10m2=as.numeric(cover10m2),
          Juvenile = as.numeric(Juvenile),
          PostFruiting = as.numeric(PostFruiting)) %>%
-  filter(Layer!="B", Layer!="L", # remove bryophytes & lichens
-         !is.na(cover10m2)) %>%  # there is one NA in cover that is that species is not present
+  filter(Layer!="B", Layer!="L" ) %>% # , # remove bryophytes & lichens
   mutate(height=ifelse(height=="X", NA, height)) %>%
   mutate(height = vapply(strsplit(height, ",\\s*"),
                          function(vals) {
@@ -56,7 +55,7 @@ data_10m2 <- read_csv("data/raw_data/Sampling5.0Data.csv") %>%
                            nums <- nums[!is.na(nums)]
                            if (length(nums) == 0) NA_real_ else mean(nums)
                          }, numeric(1))) %>% 
-  select(PlotNo, Subplot, Month, Layer, Taxon, cover10m2, height, phen,	Seedling, Juvenile, 
+  select(PlotNo, Month, Taxon, cover10m2, height, phen,	Seedling, Juvenile, 
          FlowerBud, Flowering, Fruiting, PostFruiting) %>% 
   summarise(cover10m2=mean(cover10m2, na.rm = TRUE),  # When species was in both 1m2 corners, it was entered in 10m2 only once (e.g. NE subplot) and left it blank for the other corner
             height=mean(height, na.rm = TRUE),
@@ -74,6 +73,17 @@ data_10m2 <- read_csv("data/raw_data/Sampling5.0Data.csv") %>%
     1, 0))
 str(data_10m2)
 
+data_10m2 %>% 
+  filter(is.na(height)) %>% 
+  print(n=Inf)
+
+data_10m2 %>% 
+  filter(is.na(cover10m2)) %>% 
+  print(n=Inf)
+
+# write missing height data to file for checking
+write_csv(data_10m2 %>% 
+            filter(is.na(height)), "data/missing_height_data.csv")
 
 # vegetation data 1m2 ----------------
 data_1m2 <- read_csv("data/raw_data/Sampling5.0Data.csv") %>%
