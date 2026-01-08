@@ -77,6 +77,68 @@ data_10m2 %>%
   filter(is.na(height)) %>% 
   print(n=Inf)
 
+## fill missing height data -----
+data_10m2_filled <- data_10m2 %>%
+  left_join(Mowing_data %>% 
+              summarise(n_mow_events_befre_sampling=mean(n_mow_events_befre_sampling),
+                        .by=c("PlotNo", "MowFreq", "Month")) %>% 
+              relocate(c("MowFreq", "n_mow_events_befre_sampling"), .after=Month),
+            by=c("PlotNo", "Month")) %>%
+# Step 1: based on Month, MowFreq, n_mow_events_befre_sampling, Taxon
+  group_by(Month, MowFreq, n_mow_events_befre_sampling, Taxon) %>%
+  mutate(hight_filled_step1 = ifelse(is.na(height),
+                                     mean(height, na.rm = TRUE), height),
+         .after=height) %>% 
+  ungroup() %>% 
+# Step 2: based on Month, n_mow_events_befre_sampling, Taxon
+  group_by(Month, n_mow_events_befre_sampling, Taxon) %>%
+  mutate(hight_filled_step2 = ifelse(is.na(hight_filled_step1),
+                                     mean(height, na.rm = TRUE), hight_filled_step1),
+         .after=hight_filled_step1) %>%
+  ungroup() %>% 
+# Step 3: based on Month, MowFreq, Taxon
+group_by(Month, MowFreq, Taxon) %>%
+  mutate(hight_filled_step3 = ifelse(is.na(hight_filled_step2),
+                                     mean(height, na.rm = TRUE), hight_filled_step2),
+         .after=hight_filled_step2) %>%
+  ungroup() %>% 
+# Step 4: based on Month, MowFreq, Taxon
+group_by(MowFreq, n_mow_events_befre_sampling, Taxon) %>%
+  mutate(hight_filled_step4 = ifelse(is.na(hight_filled_step3),
+                                     mean(height, na.rm = TRUE), hight_filled_step3),
+         .after=hight_filled_step3) %>%
+  ungroup() %>% 
+# Step 5: based on Month, MowFreq, Taxon
+  group_by(n_mow_events_befre_sampling, Taxon) %>%
+  mutate(hight_filled_step5 = ifelse(is.na(hight_filled_step4),
+                                     mean(height, na.rm = TRUE), hight_filled_step4),
+         .after=hight_filled_step4) %>%
+  ungroup()
+
+
+data_10m2_filled %>% 
+  filter(is.na(height)) %>% 
+  print(n=Inf)
+
+data_10m2_filled %>% 
+  filter(is.na(hight_filled_step2)) %>% 
+  print(n=Inf)
+
+  # compute mean per month (in case mowing+month group had all NAs)
+  group_by(Month) %>%
+  mutate(mean_month = mean(height, na.rm = TRUE)) %>%
+  ungroup() %>%
+  # overall mean as last resort
+  mutate(mean_all = mean(height, na.rm = TRUE)) %>%
+  # fill NA height using coalesce (first non-NA of the list)
+  mutate(height = coalesce(height, mean_mow_month, mean_month, mean_all)) %>%
+  select(-mean_mow_month, -mean_month, -mean_all)
+
+
+# for taxa when height is NA, take mean of height for same plot and month
+data_10m2 %>% 
+  filter(is.na(height)) %>% 
+  unique(Taxon) %>%
 data_10m2 %>% 
   filter(is.na(cover10m2)) %>% 
   print(n=Inf)
