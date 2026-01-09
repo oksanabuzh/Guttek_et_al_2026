@@ -256,7 +256,7 @@ plot1 <- ggplot(data=plot.scrs,
                   size=5, fontface="bold", show_guide = F) +
   theme_bw()+
   scale_color_manual(values = c("#F8766D", "#00B0F6","#00BA38"))+
-  labs(color="Management",  x="RDA1 (13.6 %)", y=" RDA2 (6.8 %)")
+  labs(color="Management",  x="RDA1 (18.9 %)", y=" RDA2 (6.1 %)")
 
 print(plot1)
 
@@ -304,8 +304,9 @@ plot2 <- ggplot(data=plot.scrs,
     "reduced mowing" = "#00B0F8", # "#00B0F6",  #"yellow3",
     "reduced mowing & sowing" = "green3" #"#00BA38" # "#00B0F6"
   )) +
+  ylim(-0.3, 0.45)+
   labs(color="Functional category", fill="Management",
-       x=" RDA1 (13.6 %)", y=" RDA2 (6.8 %)")
+       x="RDA1 (18.9 %)", y=" RDA2 (6.1 %)")
 
 
 print(plot2)
@@ -341,7 +342,7 @@ plot3 <- ggplot(data=plot.scrs,
     "September"="brown"
   )) +
   labs(fill="Month", color="Functional category",
-       x=" RDA1 (13.6 %)", y=" RDA2 (6.8 %)")
+       x="RDA1 (18.9 %)", y=" RDA2 (6.1 %)")
 
 
 print(plot3)

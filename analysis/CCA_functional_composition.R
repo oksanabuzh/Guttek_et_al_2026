@@ -26,7 +26,8 @@ FuncComp <-read.csv("data/processed_data/CWM_FunctCompos_1m2.csv") %>%
          -starts_with("lifeform_"),
          # -status_NotEndangered,
          # -Mowing.Frequency, 
-         -Disturbance.Frequency,-Disturbance.Severity, -Grazing.Pressure, -Soil.Disturbance) %>%
+         -Disturbance.Frequency,-Disturbance.Severity, -Grazing.Pressure, -Soil.Disturbance
+        ) %>%
   column_to_rownames("Plot")
 
 names(FuncComp)
@@ -78,7 +79,7 @@ str(predictor_data)
 decorana((FuncComp)) 
 #  <3 -> linear methods  are  applicable as axis lengths for DCA1 is <3
 
-# we would use CCA to be consistent with all other analysis
+# we can use CCA to be consistent with all other analysis
 
 # CCA -----
 set.seed(1)
@@ -252,10 +253,9 @@ plot1 <- ggplot(data=plot.scrs,
                   size=5, fontface="bold", show_guide = F) +
   theme_bw()+
   scale_color_manual(values = c("#F8766D", "#00B0F6","#00BA38"))+
-  labs(color="Management",  x=" CCA1 (12.1 %)", y=" CCA2 (6.3 %)")
+  labs(color="Management",  x=" CCA1 (14.9 %)", y=" CCA2 (5.6 %)")
 
 print(plot1)
-
 
 # ggsave(" CCA_plot1.png", plot1, width = 6, height = 6, dpi = 350)
 # ggsave(" CCA_plot1.jpeg", plot1, width = 6, height = 6, dpi = 350)
@@ -300,7 +300,7 @@ plot2 <- ggplot(data=plot.scrs,
     "reduced mowing & sowing" = "green3" #"#00BA38" # "#00B0F6"
   )) +
    labs(color="Functional category", fill="Management",
-        x="CCA1 (12.1 %)", y=" CCA2 (6.3 %)")
+        x=" CCA1 (14.9 %)", y=" CCA2 (5.6 %)")
 
 
 print(plot2)
@@ -336,7 +336,7 @@ plot3 <- ggplot(data=plot.scrs,
       "September"="brown"
     )) +
   labs(color="Functional category", fill="Month", 
-       x="CCA1 (12.1 %)", y=" CCA2 (6.3 %)")
+       x=" CCA1 (14.9 %)", y=" CCA2 (5.6 %)")
 
 
 print(plot3)

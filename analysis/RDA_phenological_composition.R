@@ -8,7 +8,7 @@ library(ggrepel)
 # data
 Phenophase_compos <- read_csv("data/processed_data/Diversity_phenology_1m2.csv") %>% 
   unite(Plot, PlotNo, Subplot, Month, remove = TRUE) %>% 
-  select(Plot, Seedling_cover,	Juvenile_cover, Vegetative_cover, FlowerBud_cover,	Flowering_cover,	Fruiting_cover,	PostFruiting_cover) %>%
+  select(Plot, Seedling_mass,	Juvenile_mass, Vegetative_mass, FlowerBud_mass,	Flowering_mass,	Fruiting_mass,	PostFruiting_mass) %>%
   column_to_rownames("Plot")
 
 
@@ -109,7 +109,7 @@ write_csv(Mod_sign %>%
 sp.scrs <- scores(ord_mod, display = "species",
                   scaling = "species") %>% 
   as_tibble(rownames = "Phenophase") %>% 
-  mutate(Phenophase = str_remove(Phenophase, "_cover$")) %>% 
+  mutate(Phenophase = str_remove(Phenophase, "_mass$")) %>% 
   mutate(Phenophase = case_when(
     Phenophase == "FlowerBud" ~ "Flower bud",
     Phenophase == "Flowering" ~ "Flowering",
@@ -219,10 +219,9 @@ plot1 <- ggplot(data=plot.scrs,
                   size=5, fontface="bold", show_guide = F) +
   theme_bw()+
   scale_color_manual(values = c("#F8766D", "#00B0F6","#00BA38"))+
-  labs(color="Management",  x="RDA1 (41.0 %)", y=" RDA2 (4.6 %)")
+  labs(color="Management",  x="RDA1 (54.8 %)", y=" RDA2 (4.5 %)")
 
 print(plot1)
-
 
 # ggsave(" RDA_plot1.png", plot1, width = 6, height = 6, dpi = 350)
 # ggsave(" RDA_plot1.jpeg", plot1, width = 6, height = 6, dpi = 350)
@@ -265,8 +264,8 @@ plot2 <- ggplot(data=plot.scrs,
     "reduced mowing & sowing" = "green3" #"#00BA38" # "#00B0F6"
   )) +
   labs(color="Red list species and neophytes", fill="Management",
-       x="RDA1 (41.0 %)", y=" RDA2 (4.6 %)") +
-  ylim(-0.7, 0.91)
+       x="RDA1 (54.8 %)", y=" RDA2 (4.5 %)") +
+  ylim(-1.25, 0.91)
 
 print(plot2)
 
@@ -300,7 +299,7 @@ plot3 <- ggplot(data=plot.scrs,
     "September"="brown"
   )) +
   labs(fill="Month",
-       x="RDA1 (41.0 %)", y=" RDA2 (4.6 %)")
+       x="RDA1 (54.8 %)", y=" RDA2 (4.5 %)")
 
 
 print(plot3)
