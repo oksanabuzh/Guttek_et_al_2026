@@ -34,17 +34,20 @@ Cover_data <- read_csv("data/raw_data/BC_2025_Cover_Data.csv") %>%
 # prepare phenology data -------------
 # phenology and height were measured only on 10m2 scale
 data_10m2 <- read_csv("data/raw_data/Sampling5.0Data.csv") %>%
-  mutate(Date = as.Date(Date, "%d/%m/%Y")) %>% 
+ # mutate(Date = as.Date(Date, "%d/%m/%Y")) %>% 
   mutate(Month = lubridate::month(Date, label = TRUE, abbr = FALSE),
          .after =Date, .keep = "unused") %>% 
   mutate(Month = case_when(Month == "April" ~ "March",
                            Month == "August" ~ "July",
                            Month == "October" ~ "September",
                            .default = Month)) %>%
-  rename("cover10m2" = "3.16m") %>% # 10m2 scale
-  mutate(cover10m2=ifelse(cover10m2=="X", 0.001, cover10m2)) %>% # X in cover columns means that we forgot to give the cover during the sample 
+  rename("cover10m2" = "3.16m", # 10m2 scale
+         cover1m2="1m") %>%     # 1m2 scale
+  mutate(cover10m2=ifelse(cover10m2=="X", 0.001, cover10m2),# X in cover columns means that we forgot to give the cover during the sample 
+         cover1m2=ifelse(cover1m2=="X", 0.001, cover1m2)) %>% 
   # to the species that were present on the plot. We replace "X" with a very low cover value to account for the species in species richness
   mutate(cover10m2=as.numeric(cover10m2),
+         cover1m2=as.numeric(cover1m2),
          Juvenile = as.numeric(Juvenile),
          PostFruiting = as.numeric(PostFruiting)) %>%
   filter(Layer!="B", Layer!="L" ) %>% # , # remove bryophytes & lichens
@@ -55,9 +58,10 @@ data_10m2 <- read_csv("data/raw_data/Sampling5.0Data.csv") %>%
                            nums <- nums[!is.na(nums)]
                            if (length(nums) == 0) NA_real_ else mean(nums)
                          }, numeric(1))) %>% 
-  select(PlotNo, Month, Taxon, cover10m2, height, phen,	Seedling, Juvenile, 
+  select(PlotNo, Month, Taxon, cover10m2, cover1m2, height, phen,	Seedling, Juvenile, 
          FlowerBud, Flowering, Fruiting, PostFruiting) %>% 
   summarise(cover10m2=mean(cover10m2, na.rm = TRUE),  # When species was in both 1m2 corners, it was entered in 10m2 only once (e.g. NE subplot) and left it blank for the other corner
+            cover1m2=mean(cover1m2),  # to get mean cover per 1m2 subplots (to only to fill NA in cover10m2 in next step)
             height=mean(height, na.rm = TRUE),
             Seedling=mean(Seedling, na.rm = TRUE), 
             Juvenile=mean(Juvenile, na.rm = TRUE), 
@@ -66,12 +70,21 @@ data_10m2 <- read_csv("data/raw_data/Sampling5.0Data.csv") %>%
             Fruiting=mean(Fruiting, na.rm = TRUE),
             PostFruiting=mean(PostFruiting, na.rm = TRUE),
             .by=c("PlotNo", "Month", "Taxon"))  %>% 
+# fill in missing cover10m2 with mean of the two corners "cover1m2"
+  mutate(cover10m2 = ifelse(is.na(cover10m2), 
+                                cover1m2, cover10m2)) %>%  # 
   mutate(across(c(Seedling, Juvenile, FlowerBud, Flowering, Fruiting, PostFruiting),
                 ~ replace(., is.na(.), 0))) %>% 
   mutate(Vegetative=ifelse(
     (Seedling + Juvenile + FlowerBud + Flowering + Fruiting + PostFruiting) == 0, 
-    1, 0))
+    1, 0)) %>% 
+  select(-cover1m2)
+
 str(data_10m2)
+
+data_10m2 %>% 
+  filter(is.na(cover10m2)) %>% 
+  print(n=Inf)
 
 data_10m2 %>% 
   filter(is.na(height)) %>% 
@@ -108,8 +121,9 @@ group_by(MowFreq, n_mow_events_befre_sampling, Taxon) %>%
                                      mean(height, na.rm = TRUE), hight_filled_step3),
          .after=hight_filled_step3) %>%
   ungroup() %>% 
-# Step 5: based on Month, MowFreq, Taxon
-  group_by(n_mow_events_befre_sampling, Taxon) %>%
+# Step 5: based on MowFreq, Taxon
+  # at step 5 I tried to group by "Month & Taxon" and by "n_mow_events_befre_sampling & Taxon"but it didn't solve NAs in addition to Step 4 
+  group_by(MowFreq, Taxon) %>%
   mutate(hight_filled_step5 = ifelse(is.na(hight_filled_step4),
                                      mean(height, na.rm = TRUE), hight_filled_step4),
          .after=hight_filled_step4) %>%
@@ -121,31 +135,9 @@ data_10m2_filled %>%
   print(n=Inf)
 
 data_10m2_filled %>% 
-  filter(is.na(hight_filled_step2)) %>% 
+  filter(is.na(hight_filled_step5)) %>% 
   print(n=Inf)
 
-  # compute mean per month (in case mowing+month group had all NAs)
-  group_by(Month) %>%
-  mutate(mean_month = mean(height, na.rm = TRUE)) %>%
-  ungroup() %>%
-  # overall mean as last resort
-  mutate(mean_all = mean(height, na.rm = TRUE)) %>%
-  # fill NA height using coalesce (first non-NA of the list)
-  mutate(height = coalesce(height, mean_mow_month, mean_month, mean_all)) %>%
-  select(-mean_mow_month, -mean_month, -mean_all)
-
-
-# for taxa when height is NA, take mean of height for same plot and month
-data_10m2 %>% 
-  filter(is.na(height)) %>% 
-  unique(Taxon) %>%
-data_10m2 %>% 
-  filter(is.na(cover10m2)) %>% 
-  print(n=Inf)
-
-# write missing height data to file for checking
-write_csv(data_10m2 %>% 
-            filter(is.na(height)), "data/missing_height_data.csv")
 
 # vegetation data 1m2 ----------------
 data_1m2 <- read_csv("data/raw_data/Sampling5.0Data.csv") %>%
@@ -163,14 +155,15 @@ data_1m2 <- read_csv("data/raw_data/Sampling5.0Data.csv") %>%
                                                      # to the species that were present on the plot. We replace "X" with a very low cover value to account for the species in species richness
   mutate(cover=as.numeric(cover)) %>%
   filter(Layer!="B", Layer!="L", # remove bryophytes & lichens
-         Subplot!="EXT", # EXT means that we found species in the big 10^2m plot that are not inside the 1^2m nested subplots. Such species always have 0% cover in NW and SE corners
-         !is.na(cover)) %>%  # there is one NA in cover that is that species is not present
+         Subplot!="EXT") %>% #, # EXT means that we found species in the big 10^2m plot that are not inside the 1^2m nested subplots. Such species always have 0% cover in NW and SE corners
   select(PlotNo, Subplot, Month, Layer, Taxon, EuroMed, cover) %>% 
   summarise(cover=sum(cover, na.rm = TRUE),  # sum cover for repeted species to get unique species per plot
             .by=c("PlotNo", "Subplot", "Month", "Taxon", "EuroMed")) %>% 
   # merge with phenology and height data
-  left_join(data_10m2 %>% 
-              select(-cover10m2),
+  left_join(data_10m2_filled %>% 
+              select(-cover10m2, -height, -hight_filled_step1, 
+                     -hight_filled_step2, -hight_filled_step3, -hight_filled_step4) %>% 
+              rename("height"="hight_filled_step5"),
             by=c("PlotNo", "Month", "Taxon")) %>%
   mutate(Biomass = height * cover, .after=height) %>% 
   mutate(Month = factor(Month, levels = c("March", "May", "July", "September"))) 
@@ -188,6 +181,8 @@ data_10m2 %>%
             ) %>% 
   filter(is.na(cover10m2))
 
+data_1m2 %>% 
+  filter(is.na(Biomass))
 
 write_csv(data_1m2, "data/processed_data/vegetation2025_1m2.csv")
 
