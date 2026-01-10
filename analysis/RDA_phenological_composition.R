@@ -67,6 +67,7 @@ decorana((Phenophase_compos))
 Phenophase_compos_hell <- decostand(Phenophase_compos, method = "hellinger")
 Phenophase_compos_log <- log1p(Phenophase_compos) 
 
+decorana(Phenophase_compos_log) 
 
 set.seed(1)
 ord_mod <-  rda(Phenophase_compos_log ~ #MowFreq:Month + 

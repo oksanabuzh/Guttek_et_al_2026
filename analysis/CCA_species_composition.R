@@ -306,3 +306,23 @@ plot2 <- ggplot(data=plot.scrs,
 
 print(plot2)
 ggsave("results/plots/CCA_plot2.png", plot2, width = 10, height = 8, dpi = 350)
+
+
+
+# Species associations with mowing treatments -------
+
+# Reduced mowing and sowing:
+sp.scrs %>% 
+  arrange(desc(CCA1), desc(CCA2)) %>% 
+  filter(CCA1 > 0.5 & CCA2 > 0.5) 
+
+# Reduced mowing:
+
+sp.scrs %>% 
+  arrange(CCA1, desc(CCA2)) %>% 
+  filter(CCA1 > 0.5 & CCA2 > 0.5)
+
+
+library(indicspecies)
+res <- multipatt(sp, env$Management, control = how(nperm = 999))
+summary(res) 
