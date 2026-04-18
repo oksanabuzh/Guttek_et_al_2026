@@ -10,11 +10,20 @@ names(traits)
 
 # Community composition: species & phenological ----------------------------------------------------------
 Composition_1m2 <- dat %>%
-   left_join(traits %>% select(-EuroMed, -status_detailed),
+   left_join(traits %>% select(-EuroMed),
              by="Taxon") %>%
   # calculate Biomass-weighted phenology for each species for each plot and month
   mutate(Neophyte=ifelse(status=="Neophyte", 1, 0),
          Endangered=ifelse(status=="Endangered", 1, 0))%>%
+  mutate(phen_sum=Seedling +Juvenile + Vegetative + 
+           FlowerBud +Flowering +Fruiting + PostFruiting) %>%
+  mutate(Seedling=ifelse(phen_sum==2, Seedling/2, Seedling),
+         Juvenile=ifelse(phen_sum==2, Juvenile/2, Juvenile),
+         Vegetative=ifelse(phen_sum==2, Vegetative/2, Vegetative),
+         FlowerBud=ifelse(phen_sum==2, FlowerBud/2, FlowerBud),
+         Flowering=ifelse(phen_sum==2, Flowering/2, Flowering),
+         Fruiting=ifelse(phen_sum==2, Fruiting/2, Fruiting),
+         PostFruiting=ifelse(phen_sum==2, PostFruiting/2, PostFruiting)) %>%
   mutate(
     Seedling = Biomass * Seedling,
     Juvenile = Biomass * Juvenile,
@@ -46,7 +55,7 @@ Diversity_phenology_1m2 <- Composition_1m2 %>%
             cover = sum(cover, na.rm = TRUE),
             biomass = sum(Biomass, na.rm = TRUE),
             height_mean=mean(height, na.rm = TRUE),
-            height_max=max(height, na.rm = TRUE),
+        #    height_max=max(height, na.rm = TRUE),
             Seedling_mass = sum(Seedling, na.rm = TRUE),
             Juvenile_mass = sum(Juvenile, na.rm = TRUE),
             Vegetative_mass = sum(Vegetative, na.rm = TRUE),
@@ -72,9 +81,7 @@ Diversity_phenology_1m2 <- Composition_1m2 %>%
             Neophytes_SR  = n_distinct(ifelse(Neophytes>0, Taxon, NA), na.rm = TRUE),
             Endangereds_SR  = n_distinct(ifelse(Endangereds>0, Taxon, NA), na.rm = TRUE),
             .by=c("PlotNo", "Month", "Subplot")) %>% 
- # mutate(biomass=ifelse(is.na(height_mean), NA, biomass), # if height is NA, biomass should be NA and not 0
- #        height_max=ifelse(is.na(height_mean), NA, height_max)) %>%  # if height is NA, height_max should be NA and not Inf
-  mutate(Seedling_mass_propr = Seedling_mass / biomass,
+   mutate(Seedling_mass_propr = Seedling_mass / biomass,
          Juvenile_mass_propr = Juvenile_mass / biomass,
          FlowerBud_mass_propr = FlowerBud_mass / biomass,
          Flowering_mass_propr = Flowering_mass / biomass,
@@ -111,7 +118,7 @@ Diversity_phenology_1m2 <- Composition_1m2 %>%
       c_across(c(Vegetative_mass, Seedling_mass,	Juvenile_mass,
                  FlowerBud_mass, Flowering_mass,	Fruiting_mass,	
                  PostFruiting_mass)), index = "invsimpson"),
-    .after = "height_max") %>% 
+    .after = "height_mean") %>% 
   ungroup()
 
 Diversity_phenology_1m2
@@ -126,25 +133,95 @@ write_csv(Diversity_phenology_1m2, "data/processed_data/Diversity_phenology_1m2.
 
 # Functional composition & diversity ----------------------------------------------------------
 
+# Fuzzy coding:
 
-Functtraits <- read_csv("data/processed_data/Functional_composition.csv") %>% 
-  select(-EuroMed, -status_detailed) 
+# 1) Define trait categories (columns belonging to each category)
+trait_categories <- list(
+  lifespan = c("lifespan_annual", "lifespan_biennialOrShortLived", "lifespan_perennial"),
+  raunkiaer = c("raunkiaer_phanerophyte", "raunkiaer_chamaephyte", 
+                "raunkiaer_hemicryptophyte", "raunkiaer_geophyte", "raunkiaer_hydrophyte",
+                "raunkiaer_therophyte"),
+  lifeform = c("lifeform_tree", "lifeform_shrub", 
+                "lifeform_herbPoli", "lifeform_herbMono"
+               # "lifeform_semishrub", "lifeform_epiphyte","lifeform_lianaWoody" , "lifeform_lianaHerb",
+               #  these lifeforms are removed as they are 0 or rare and correlate strongly with other lifeforms 
+                ))
+
+
+# 2) Function to normalize columns within a category to sum to 1
+normalize_category <- function(dat, colums) {
+    row_sums <- rowSums(dat[colums], na.rm = TRUE)
+  row_sums[row_sums == 0] <- 1  # Avoid division by zero
+  dat[colums] <- dat[colums] / row_sums
+  dat
+}
+
+# 3) Apply normalization to each category
+traits_fuzzy <- traits %>% 
+  select(-c(lifeform_semishrub, lifeform_epiphyte, 
+            lifeform_lianaWoody, lifeform_lianaHerb)) %>% 
+  mutate(status=case_when(status=="Neophyte" ~ "neophyte",
+                          status=="Endangered (2)" ~ "endangered",
+                          status=="Endangered (3)" ~ "endangered",
+                          status=="Endangered (NA)" ~ "endangered",
+                          status=="Warning" ~ "vulnerable",
+                          status=="NotEndangered" ~ "least_concerned",
+                          .default = status)
+         )                     
+
+for (category in trait_categories) {
+  traits_fuzzy <- normalize_category(traits_fuzzy, category)
+}
+
+# 4) Check if normalization worked: row sums within each category should be 1
+check_fuzzy <- sapply(trait_categories, function(colums) {
+  sums <- rowSums(traits_fuzzy[colums], na.rm = TRUE)
+  list(
+    min = min(sums),
+    max = max(sums),
+    all_sum_to_1 = all(sums == 0 | abs(sums - 1) < 1e-10)
+  )
+})
+
+check_fuzzy
+
+# 5) Identify and remove columns that sum to 0 across all rows
+zero_cols <- colnames(traits_fuzzy)[sapply(traits_fuzzy, function(x) {
+  is.numeric(x) && sum(x, na.rm = TRUE) == 0
+})]
+
+zero_cols
+
+# Remove these columns:
+traits_fuzzy <- traits_fuzzy %>% 
+  select(-all_of(zero_cols))
+
+traits_fuzzy %>% 
+  write_csv("data/processed_data/Traits_Dist.Ind.Values_fuzzy.csv")
+
+# read and explore the data:
+
+Functtraits <- read_csv("data/processed_data/Traits_Dist.Ind.Values_fuzzy.csv") %>%
+  rename(Taxon_EuroMed = EuroMed) %>%
+  select(-Taxon) 
 
 # any species with NA across all traits?
 Functtraits %>% 
-  column_to_rownames("Taxon") %>%
+  column_to_rownames("Taxon_EuroMed") %>%
   filter(if_all(everything(), is.na))
 # three species with all traits=NA
-# c("Asteracea", "Plantae (rosette)", "Rosaceae")
+# c("Asteracea", "Plantae", "Rosaceae")
 
 ## species data ----
 
 species_data <- read_csv("data/processed_data/Commun_Spec&Phenolog_Composition_1m2.csv") %>% 
-  filter(!(Taxon %in% c("Asteracea", "Plantae (rosette)", "Rosaceae"))) %>% # species with all traits=NA
+  rename(Taxon_EuroMed = EuroMed) %>%
+  select(-Taxon) %>% 
+  filter(!(Taxon_EuroMed %in% c("Asteracea", "Plantae", "Rosaceae"))) %>% # species with all traits=NA
   unite(Plot, PlotNo, Subplot, Month, remove = TRUE) %>% 
-  select(Plot, Taxon, Biomass) %>%
-  arrange(Taxon) %>%
-  pivot_wider(names_from = Taxon, values_from = Biomass, values_fill = 0) %>% 
+  select(Plot, Taxon_EuroMed, Biomass) %>%
+  arrange(Taxon_EuroMed) %>%
+  pivot_wider(names_from = Taxon_EuroMed, values_from = Biomass, values_fill = 0) %>% 
   column_to_rownames("Plot")
 
 str(species_data)
@@ -156,12 +233,13 @@ which(colSums(species_data) == 0)
 
 ## functional groups data ----
 Func_groups <- read_csv("data/processed_data/Commun_Spec&Phenolog_Composition_1m2.csv") %>% 
-  filter(!(Taxon %in% c("Asteracea", "Plantae (rosette)", "Rosaceae"))) %>% # species with all traits=NA
-  select(Taxon) %>% distinct(Taxon) %>% arrange(Taxon) %>%  # to ensure we use same species list and order as in species_data
-  left_join(read_csv("data/processed_data/Functional_composition.csv") %>% 
-              select(-EuroMed, -status_detailed),
-            by="Taxon") %>% 
-  column_to_rownames("Taxon") 
+  rename(Taxon_EuroMed = EuroMed) %>%
+  select(-Taxon) %>% 
+  filter(!(Taxon_EuroMed %in% c("Asteracea", "Plantae", "Rosaceae"))) %>% # species with all traits=NA
+  select(Taxon_EuroMed) %>% distinct(Taxon_EuroMed) %>% arrange(Taxon_EuroMed) %>%  # to ensure we use same species list and order as in species_data
+  left_join(Functtraits,
+            by="Taxon_EuroMed") %>% 
+  column_to_rownames("Taxon_EuroMed") 
 
 str(Func_groups)
 names(Func_groups)
@@ -174,14 +252,25 @@ Func_groups %>% filter(if_all(everything(), is.na))
 dim(species_data)
 dim(Func_groups)
 
+names(Func_groups) 
+# Check if two columns are identical
+identical(Func_groups$lifeform_tree, Func_groups$lifeform_shrub)
+
+
+# Binary columns?
+Func_groups %>% 
+  select(where(is.numeric)) %>% 
+  select(where(\(x) all(x %in% c(0, 1, NA)))) %>% 
+  names()
+
 FuncComp <- FD::functcomp(Func_groups %>% 
                             rename(FG=functional_group,
-                                   lifespan_shortlived=lifespan_biennialOrShortLived,
-                                   lifeform_tree.shrub=lifeform_tree_schrub),  
+                                #   lifeform_tree.shrub=lifeform_tree_schrub,
+                                   lifespan_shortlived=lifespan_biennialOrShortLived),  
                           as.matrix(species_data), 
                           CWM.type = "all", 
                           bin.num=c(  #  bin.num - indicates binary traits to be treated as continuous  
-                            "raunkiaer_phanerophyte", "lifeform_tree.shrub",
+                            "raunkiaer_phanerophyte", 
                             "lifeform_herbPoli", "lifeform_herbMono")) 
 
 FuncComp
@@ -204,19 +293,14 @@ Func_groups_modif <- Func_groups %>%
          -starts_with("lifeform_"),  # correlate strongly with lifespan
          # exclude all disturb indic for calculating functional diversity
          -Disturbance.Frequency,-Disturbance.Severity,  
-         -Mowing.Frequency, -Grazing.Pressure, -Soil.Disturbance) %>%
-  rownames_to_column("Taxon") %>%
-  # for column status, create wide a format 
-  mutate(present = 1) %>%
-  pivot_wider(names_from = status, values_from=present, values_fill = 0,
-              names_prefix = "status_") %>%
-  mutate(across(starts_with("status_"), ~ replace(.x, status_NA==1, NA))) %>%
-  select(-status_NA) %>% 
+         -Mowing.Frequency, -Grazing.Pressure, -Soil.Disturbance,
+         -status) %>%
+  rownames_to_column("Taxon_EuroMed") %>%
   # for column functional_group, create a wide format 
   mutate(present = 1) %>%
   pivot_wider(names_from = functional_group, values_from=present, values_fill = 0,
               names_prefix = "FunGr_") %>%
-  column_to_rownames("Taxon")
+  column_to_rownames("Taxon_EuroMed")
 
 str(Func_groups_modif)
 

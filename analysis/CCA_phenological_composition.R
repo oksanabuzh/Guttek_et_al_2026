@@ -1,5 +1,5 @@
 # Phenology, ordination --------
-dev.off
+dev.off()
 
 library(tidyverse)
 library(vegan)
@@ -20,7 +20,7 @@ names(Phenophase_compos)
 ## predictor data ----
 
 # mowing data
-Mowing_data <- read_csv("data/raw_data/mowing_events_2025.csv") %>% 
+Mowing_data <- read_csv("data/raw_data/mowing_events_2025_DB.csv") %>% 
   pivot_longer(cols = c(September,	July,	May,	March),
                names_to = "Month",
                values_to = "n_mow_events_befre_sampling")%>% 
@@ -65,7 +65,7 @@ decorana((Phenophase_compos))
 
 # CCA -----
 set.seed(1)
-ord_mod <-  cca(Phenophase_compos ~ #MowFreq:Month + 
+ord_mod <-  cca(Phenophase_compos ~ # MowFreq:Month + # remove nonsignificant interaction
                   MowFreq + Month + 
                   n_mow_events_befre_sampling, data = predictor_data,
                 scale = FALSE) # scale data to have the same units
@@ -185,7 +185,16 @@ plot.scrs
 
 # plot  results -----
 
-## plot for plots data
+summary(eigenvals(ord_mod)) %>% 
+  as_tibble(rownames = "Axis") %>% 
+  select(Axis, CCA1, CCA2) %>% 
+  filter(Axis %in% c("Proportion Explained", "Cumulative Proportion")) %>%
+  mutate(CCA1=round(CCA1, 3)*100,
+         CCA2=round(CCA2, 3)*100)
+
+
+## plot for plots data  -------------------------------------------------------
+
 set.seed(11)
 plot1 <- ggplot(data=plot.scrs, 
                 aes(x= CCA1, y= CCA2))+
@@ -212,10 +221,10 @@ plot1 <- ggplot(data=plot.scrs,
                   #geom_text(data=centroids, 
                   aes(x= CCA1_centroid, y= CCA2_centroid, 
                       color=Mowing, label = Month), 
-                  size=5, fontface="bold", show_guide = F) +
+                  size=5, fontface="bold", show.legend = F) +
   theme_bw()+
   scale_color_manual(values = c("#F8766D", "#00B0F6","#00BA38"))+
-  labs(color="Management",  x="CCA1 (12.7 %)", y=" CCA2 (5.6 %)")
+  labs(color="Management",  x="CCA1 (18.0 %)", y=" CCA2 (8.4 %)")
 
 print(plot1)
 
@@ -223,7 +232,7 @@ print(plot1)
 # ggsave(" CCA_plot1.png", plot1, width = 6, height = 6, dpi = 350)
 # ggsave(" CCA_plot1.jpeg", plot1, width = 6, height = 6, dpi = 350)
 
-# plot for species data
+## plot for species data (Management) ---------------------------------------------------------------
 set.seed(11)
 plot2 <- ggplot(data=plot.scrs, 
                 aes(x= CCA1, y= CCA2))+
@@ -251,7 +260,7 @@ plot2 <- ggplot(data=plot.scrs,
              alpha=1, pch=8, color="red4")+
   geom_text_repel(data=sp.scrs, color="red4",
                   aes(x= CCA1, y= CCA2, label = Phenophase), 
-                  size=4, fontface="bold", show_guide = F,
+                  size=4, fontface="bold", show.legende = F,
                   max.overlaps=Inf) +
   theme_bw()+
   guides(color = guide_legend(override.aes = list(size = 3))) + # makes legend dots large
@@ -261,11 +270,12 @@ plot2 <- ggplot(data=plot.scrs,
     "reduced mowing & sowing" = "green3" #"#00BA38" # "#00B0F6"
   )) +
    labs(color="Red list species and neophytes", fill="Management",
-        x="CCA1 (12.7 %)", y=" CCA2 (5.6 %)")
+        x="CCA1 (18.0 %)", y=" CCA2 (8.4 %)")
+
 
 print(plot2)
 
-# plot for species data
+## plot for species data (Month) ------------------------------------------------------
 set.seed(11)
 plot3 <- ggplot(data=plot.scrs, 
                 aes(x= CCA1, y= CCA2))+
@@ -280,11 +290,11 @@ plot3 <- ggplot(data=plot.scrs,
     # species
   geom_point(data=sp.scrs, 
              aes(x= CCA1, y= CCA2), 
-             size = 0.5,  
+             size = 1,  
              alpha=0.8, pch=19)+
   geom_text_repel(data=sp.scrs, 
                   aes(x= CCA1, y= CCA2, label = Phenophase), 
-                  size=4, fontface="bold", show_guide = F,
+                  size=4, fontface="bold", show.legend = F,
                   max.overlaps=Inf) +
   theme_bw()+
   guides(color = guide_legend(override.aes = list(size = 3))) + # makes legend dots large
@@ -295,8 +305,7 @@ plot3 <- ggplot(data=plot.scrs,
       "September"="brown"
     )) +
   labs(fill="Month",
-       x="CCA1 (12.7 %)", y=" CCA2 (5.6 %)")
-
+       x="CCA1 (18.0 %)", y=" CCA2 (8.4 %)")
 
 print(plot3)
 

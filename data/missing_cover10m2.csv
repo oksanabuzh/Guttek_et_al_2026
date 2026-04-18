@@ -1,0 +1,40 @@
+PlotNo,Month,Taxon,cover10m2,cover1m2,height,Seedling,Juvenile,FlowerBud,Flowering,Fruiting,PostFruiting
+BC01,May,Plagiomnium,NA,0.1,1,NA,NA,NA,NA,NA,NA
+BC01,September,Trifolium pratensis,NA,3,10,NA,NA,NA,1,1,NA
+BC01,September,Trifolium repens,NA,7,7,NA,NA,NA,1,1,NA
+BC02,July,Geum urbanum,NA,0.01,3,NA,NA,NA,NA,NA,NA
+BC02,July,Medicago sativa,NA,15,20.333333333333332,NA,NA,NA,1,1,NA
+BC02,July,Solidago canadensis,NA,40,87.33333333333333,NA,NA,1,NA,NA,NA
+BC02,July,Tanacetum vulgare,NA,3,43,NA,NA,NA,1,NA,NA
+BC02,September,Taraxacum,NA,3,10,NA,NA,NA,NA,NA,NA
+BC02,September,Rhytidiadelphus squarrosus,NA,5,1.5,NA,NA,NA,NA,NA,NA
+BC03,July,Erodium cicutarium,NA,0.01,1.6666666666666667,1,NA,NA,NA,NA,NA
+BC03,September,Bromus sterilis,NA,3,10,NA,NA,NA,NA,NA,NA
+BC03,September,Brachythecium,NA,20,3,NA,NA,NA,NA,NA,NA
+BC04,September,Agrostis capillaris,NA,3,13,NA,NA,NA,NA,NA,NA
+BC04,September,Arenaria serpyllifolia,NA,0.1,1.6666666666666667,NA,NA,NA,1,1,NA
+BC05,March,Echium vulgare,NA,0.5,NA,NA,NA,NA,NA,NA,NA
+BC05,May,Crepis capillaris,NA,0.1,4,NA,NA,NA,NA,NA,NA
+BC05,September,Luzula campestris,NA,0.1,8,NA,NA,NA,NA,NA,NA
+BC06,September,Hypochaeris radicata,NA,2,2,NA,NA,NA,NA,NA,NA
+BC07,September,Hypericum perforatum,NA,0.1,6.5,NA,NA,NA,NA,NA,NA
+BC08,July,Medicago lupulina,NA,3,6,NA,NA,NA,1,1,NA
+BC08,September,Arenaria serpyllifolia,NA,0.01,NA,NA,NA,NA,NA,NA,NA
+BC08,September,Trifolium repens,NA,1,NA,NA,NA,NA,NA,NA,NA
+BC09,September,Bromus mollis,NA,0.01,9,1,NA,NA,NA,NA,NA
+BC10,March,Taraxacum,NA,0.5,1,NA,NA,NA,NA,NA,NA
+BC12,March,Calliergonella cuspidata,NA,40,2.6666666666666665,NA,NA,NA,NA,NA,NA
+BC12,March,Plagiomnium,NA,4,2,NA,NA,NA,NA,NA,NA
+BC12,September,Plagiomnium undulatum,NA,5,2,NA,NA,NA,NA,NA,NA
+BC13,September,Veronica arvensis,NA,0.1,1,1,NA,NA,NA,NA,NA
+BC14,September,Hypochaeris radicata,NA,4,5.666666666666667,NA,NA,NA,1,1,NA
+BC14,September,Taraxacum,NA,1,8,NA,NA,NA,NA,NA,NA
+BC16,July,Elymus repens,NA,8,NA,NA,NA,NA,NA,NA,NA
+BC16,July,Plantago lanceolata,NA,7,NA,NA,NA,NA,NA,NA,NA
+BC16,September,Oxalis corniculata,NA,2,4,NA,NA,NA,NA,NA,NA
+BC16,September,Plantago lanceolata,NA,7,2.6666666666666665,NA,NA,NA,NA,NA,NA
+BC17,March,Festuca pratensis,NA,3,NA,NA,NA,NA,NA,NA,NA
+BC17,September,Plantago media,NA,3,3.6666666666666665,NA,NA,NA,NA,NA,NA
+BC19,May,Dactylis glomerata,NA,5,52.666666666666664,NA,NA,NA,1,NA,NA
+BC19,July,Climacium dendroides,NA,75,2.6666666666666665,NA,NA,NA,NA,NA,NA
+BC20,July,Achillea millefolium,NA,8,5.666666666666667,NA,NA,NA,NA,NA,NA

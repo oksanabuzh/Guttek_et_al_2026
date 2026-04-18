@@ -1,5 +1,5 @@
 # Functional composition, ordination 
-dev.off
+dev.off()
 
 library(tidyverse)
 library(vegan)
@@ -26,7 +26,7 @@ FuncComp <-read.csv("data/processed_data/CWM_FunctCompos_1m2.csv") %>%
          -starts_with("lifeform_"),
          # -status_NotEndangered,
          # -Mowing.Frequency, 
-         -Disturbance.Frequency,-Disturbance.Severity, -Grazing.Pressure, -Soil.Disturbance
+         -Disturbance.Frequency,-Disturbance.Severity, -Grazing.Pressure #, -Soil.Disturbance
         ) %>%
   column_to_rownames("Plot")
 
@@ -39,7 +39,7 @@ ggcorrplot::ggcorrplot(round(cor(FuncComp, method = c("pearson"), use = "pairwis
 
 ## predictor data ----
 # mowing data
-Mowing_data <- read_csv("data/raw_data/mowing_events_2025.csv") %>% 
+Mowing_data <- read_csv("data/raw_data/mowing_events_2025_DB.csv") %>% 
   pivot_longer(cols = c(September,	July,	May,	March),
                names_to = "Month",
                values_to = "n_mow_events_befre_sampling")%>% 
@@ -150,7 +150,7 @@ sp.scrs <- scores(ord_mod, display = "species",
     Trait_modality == "Disturbance.Frequency" ~ "Distr.Frequency",
     Trait_modality == "Mowing.Frequency" ~ "mowing-disturbance species",
     Trait_modality == "Grazing.Pressure" ~ "Grazing.Distr",
-    Trait_modality == "Soil.Disturbance" ~ "Soil.Distr",
+    Trait_modality == "Soil.Disturbance" ~ "soil-disturbance species",
     .default=Trait_modality)) 
 
 sp.scrs
@@ -223,8 +223,17 @@ plot.scrs <- plot.scrs %>%
 plot.scrs
 
 # plots -----
+
+summary(eigenvals(ord_mod)) %>% 
+  as_tibble(rownames = "Axis") %>% 
+  select(Axis, CCA1, CCA2) %>% 
+  filter(Axis %in% c("Proportion Explained", "Cumulative Proportion")) %>%
+  mutate(CCA1=round(CCA1, 3)*100,
+         CCA2=round(CCA2, 3)*100)
+
+
+## plot for plots data ---------------------------------------------------------
 set.seed(11)
-# plot for plots data
 plot1 <- ggplot(data=plot.scrs, 
                 aes(x= CCA1, y= CCA2))+
   geom_hline(yintercept = 0, color="grey", lty =1) +
@@ -250,10 +259,10 @@ plot1 <- ggplot(data=plot.scrs,
                   #geom_text(data=centroids, 
                   aes(x= CCA1_centroid, y= CCA2_centroid, 
                       color=Mowing, label = Month), 
-                  size=5, fontface="bold", show_guide = F) +
+                  size=5, fontface="bold", show.legend = F) +
   theme_bw()+
   scale_color_manual(values = c("#F8766D", "#00B0F6","#00BA38"))+
-  labs(color="Management",  x=" CCA1 (14.9 %)", y=" CCA2 (5.6 %)")
+  labs(color="Management",  x=" CCA1 (14.5 %)", y=" CCA2 (5.6 %)")
 
 print(plot1)
 
@@ -290,7 +299,7 @@ plot2 <- ggplot(data=plot.scrs,
   geom_text_repel(data=sp.scrs, 
                   aes(x= CCA1, y= CCA2, color=Trait_group,
                       label = Trait_modality), 
-                  size=4, fontface="bold", show_guide = F,
+                  size=4, fontface="bold", show.legend = F,
                   max.overlaps=Inf) +
   theme_bw()+
   guides(color = guide_legend(override.aes = list(size = 3))) + # makes legend dots large
@@ -300,7 +309,7 @@ plot2 <- ggplot(data=plot.scrs,
     "reduced mowing & sowing" = "green3" #"#00BA38" # "#00B0F6"
   )) +
    labs(color="Functional category", fill="Management",
-        x=" CCA1 (14.9 %)", y=" CCA2 (5.6 %)")
+        x=" CCA1 (14.5 %)", y=" CCA2 (5.6 %)")
 
 
 print(plot2)
@@ -325,7 +334,7 @@ plot3 <- ggplot(data=plot.scrs,
   geom_text_repel(data=sp.scrs, 
                   aes(x= CCA1, y= CCA2, label = Trait_modality, 
                       color=Trait_group), 
-                  size=4, fontface="bold", show_guide = F,
+                  size=4, fontface="bold", show.legend = F,
                   max.overlaps=Inf) +
   theme_bw()+
   guides(color = guide_legend(override.aes = list(size = 3))) + # makes legend dots large
@@ -336,7 +345,7 @@ plot3 <- ggplot(data=plot.scrs,
       "September"="brown"
     )) +
   labs(color="Functional category", fill="Month", 
-       x=" CCA1 (14.9 %)", y=" CCA2 (5.6 %)")
+       x=" CCA1 (14.5 %)", y=" CCA2 (5.6 %)")
 
 
 print(plot3)
