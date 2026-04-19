@@ -2545,60 +2545,22 @@ MuMIn::r.squaredGLMM(m2_neo)
 r2glmm::r2beta(m2_neo,  partial = T)
 
 
-# Full model R²
-r2_full <- r2(m2_neo)$R2_marginal
-
-# Function to calculate partial R² for each predictor
-partial_r2 <- function(full_model, predictor) {
-  reduced <- update(full_model, as.formula(paste(". ~ . -", predictor)))
-  r2_reduced <- r2(reduced)$R2_marginal
-  r2_full - r2_reduced
-}
-
-# Calculate for each predictor
-predictors <- c("Month", "MowFreq", "n_mow_events_befre_sampling", 
-                "Litter_Cover", "road_density_km_per_ha", 
-                "patch_size_m2_scaled", "Bare_Ground_Cover",
-                "slope_degr", "dist_tree", "sky_view_factor",
-                "Biotop_richness_specific")
-
-partial_r2_values <- sapply(predictors, function(p) partial_r2(m2_neo, p))
-
-# View results
-data.frame(
-  predictor = predictors,
-  partial_R2 = round(partial_r2_values, 4)
-) |>
-  arrange(desc(partial_R2))
 
 Mod_results_neo <- drop1(m2_neo, test = "Chisq") %>% as.data.frame() %>% 
   rownames_to_column("Driver") %>% select(-AIC) %>% 
   filter(Driver != "<none>") %>% 
-  rename("Chi"= LRT) %>%
+  rename("Chi"= LRT) 
   # relocate raw "MowFreq:Month" in column "Driver" to the top
-  left_join(
-    r2glmm::r2beta(m2_SR_dummy,  partial = T) %>% as.data.frame() %>% 
-      rename(Driver="Effect") %>% 
-      select(Driver,  Rsq), by = "Driver") %>% 
-  mutate(Responce = "SR", .before= Driver)
+#  left_join(
+#    r2glmm::r2beta(m2_neo,  partial = T) %>% as.data.frame() %>% 
+#      rename(Driver="Effect") %>% 
+#      select(Driver,  Rsq), by = "Driver") %>% 
+#  mutate(Responce = "Neoph", .before= Driver)
 
 
-Mod_results_SR %>% 
-  write_csv("results/GLMM_SpecRich.csv")
+Mod_results_neo %>% 
+  write_csv("results/GLMM_Neophite_perc.csv")
 
-
-Mod_results_FDis <- drop1(m2_FDis) %>% as.data.frame() %>% 
-  rownames_to_column("Driver") %>% select(-"Sum Sq", -"Mean Sq") %>% 
-  # relocate raw "MowFreq:Month" in column "Driver" to the top
-  arrange(Driver != "MowFreq:Month") %>% 
-  left_join(
-    r2glmm::r2beta(m2_FDis,  partial = T) %>% as.data.frame() %>% 
-      rename(Driver="Effect") %>% 
-      select(Driver,  Rsq), by = "Driver") %>% 
-  mutate(Responce = "FDis",.before= Driver)
-
-Mod_results_FDis %>% 
-  write_csv("results/LMM_Functional_dispersion.csv")
 
 ## Plots ------------------------------------------------------------------------
 
