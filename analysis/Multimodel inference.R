@@ -1,22 +1,47 @@
 # Multimodel inferevce, following Grueber et al. (2011)
 # https://doi.org/10.1111/j.1420-9101.2010.02210.x
 
+# Data_1m2 <- read_csv("data/processed_data/Data_1m2_analysis.csv")
+
+
+Data_1m2 %>%
+  select(Month, phen_evenness,
+         n_mow_events_befre_sampling,
+         Bare_Ground_Cover, Litter_Cover, slope_degr, dist_tree, 
+         sky_view_factor, patch_size_m2, Biotop_richness_specific, 
+         green_cover_pct_log, road_density_km_per_ha, protected_cover_pct) %>% 
+  pivot_longer(-c(Month, phen_evenness), 
+               names_to = "variable", values_to = "value") %>%
+  ggplot(aes(x = value, y = phen_evenness)) +
+  geom_point(aes(color=Month), alpha=0.6) +
+  geom_smooth(method = "lm", 
+              se = TRUE, color = "blue") +
+  facet_wrap(~ variable, scales = "free_x") +
+  theme_bw() +
+  scale_color_manual(values = Month_col) +
+  labs(x = NULL)
+
+
+
 library(MuMIn)
 options(na.action = "na.fail")
-
+Data_1m2$phen_evenness
 # Fit full model
-m_full <- glmer(SR ~ Month + MowFreq +  
-                  scale(n_mow_events_befre_sampling) +
-                  scale(Litter_Cover) + 
-                  scale(road_density_km_per_ha) + 
-                  log(patch_size_m2) +
-                  #  Bare_Ground_Cover + 
-                  scale(slope_degr) + scale(dist_tree) + 
-                  scale(sky_view_factor) +
-                  scale(Biotop_richness_specific) + 
-                  log1p(green_cover_pct) + 
-                  (1|PlotNo),
-                family = poisson, data = Data_1m2)
+m_full <- lmerTest::lmer(phen_evenness ~ 
+                           Month * MowFreq +  
+                           scale(n_mow_events_befre_sampling) +
+                           scale(Litter_Cover) + 
+                           scale(road_density_km_per_ha) + 
+                           scale(patch_size_m2) +
+                           Bare_Ground_Cover + 
+                           scale(slope_degr) + scale(dist_tree) + 
+                           scale(sky_view_factor) +
+                           scale(Biotop_richness_specific) + 
+                           scale(green_cover_pct) + 
+                           (1|PlotNo),
+                         data = Data_1m2)
+
+drop1(m_full)
 
 # All subsets
 all_models <- dredge(m_full)
@@ -29,7 +54,10 @@ avg_model <- model.avg(all_models, subset = delta < 2)
 summary(avg_model)
 
 
+# Get best model
+best_model <- get.models(all_models, subset = 1)[[1]]
 
+drop1(best_model, test = "Chisq")
 # using Grueber et al. (2011) approach for model averaging  ---------
 
 # Generate all subsets
@@ -41,7 +69,6 @@ top_models <- get.models(all_models, subset = delta < 2)
 # Model averaging (following Grueber et al.)
 avg_model <- model.avg(all_models, subset = delta < 2)
 
-drop1(avg_model, test = "Chisq")
 
 # Full average (shrinkage estimates) - recommended by Grueber et al.
 summary(avg_model)
@@ -93,8 +120,7 @@ ggplot(pred_df, aes(x = road_density_km_per_ha, y = fit)) +
 
 
 
-# Get best model
-best_model <- get.models(all_models, subset = 1)[[1]]
+
 
 # Use effects package
 library(effects)
