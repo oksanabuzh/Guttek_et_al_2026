@@ -1,4 +1,6 @@
+# Explorations of possible drivers of diversity patterns in the 1m2 data, including cover data and GIS data.
 
+library(tidyverse)
 
 # Data -------------------------------------------------------------------------
 
@@ -1157,6 +1159,7 @@ plot_data %>%
 
 
 
+
 # 3.3) with Carolin's GIS main (patch type, size, distances) :  ----------------
 
 #### Mowing events number  -----
@@ -1206,8 +1209,25 @@ plot_data %>%
   theme(legend.position = "bottom")
 
 
+plot_data %>%
+  group_by(PlotNo, MowFreq) %>%
+  count() %>% dplyr::select(-n) %>% ungroup() %>%
+  left_join(GIS_main %>% 
+              dplyr::select(PlotNo, patch_biotope_area_sqm, min_dist_to_street_m,
+                            min_dist_to_water_m, min_dist_to_business_district_km_no_buffer), 
+            by = c("PlotNo")) %>%
+  rename(patch_size_m2=patch_biotope_area_sqm) %>%
+  ggplot(aes(x = MowFreq, y = patch_size_m2, color=MowFreq)) +
+  geom_point(aes(color=MowFreq), alpha=0.6,
+             position=position_jitterdodge(jitter.width=0.4, jitter.height=0.07,
+                                           dodge.width=0.7)) +
+  geom_boxplot(outliers = F, alpha=0) +
+  theme_bw() +
+  scale_color_manual(values = MowFreq_col) +
+  labs(x = "Management", y = "Patch size (m2)") +
+  theme(legend.position = "bottom")
 
-# 3.4) with Carolin's GIS data in 500m buffer :  ----------------
+# 3.4) 500m: with Carolin's GIS data in 500m buffer :  ----------------
 
 #### Mowing events number  -----
 plot_data %>%
@@ -1245,8 +1265,29 @@ plot_data %>%
   theme(legend.position = "bottom")
 
 
+#### among the GIS data -----
 
-# 3.5) with Carolin's GIS data in 1000m buffer :  ----------------
+GIS_500 %>% 
+   ggplot(aes(impervious_pct, green_cover_pct)) +
+  geom_point(size=2, color="gray44") +
+  geom_smooth(method = "lm", 
+              se = TRUE, color = "black") +
+ labs(x = "Impervious surfaces cover, %", 
+      y = "Green surfaces cover, %") +
+  theme_bw()
+
+
+GIS_500 %>% 
+  ggplot(aes(protected_biotopes_polygons_cover_pct, green_cover_pct)) +
+  geom_point(size=2, color="gray44") +
+  geom_smooth(method = "lm", 
+              se = TRUE, color = "black") +
+  labs(y = "Protected biotopes cover, %", 
+       x = "Green surfaces cover, %") +
+  theme_bw()
+
+
+# 3.5) 1000m: with Carolin's GIS data in 1000m buffer :  ----------------
 
 #### Mowing events number  -----
 plot_data %>%
