@@ -22,6 +22,12 @@ library(conflicted)
 conflict_prefer("select", "dplyr")
 conflict_prefer("filter", "dplyr")
 
+# R version
+R.version.string
+
+# Citation for R
+citation()
+
 # Data -------------------------------------------------------------------------
 
 ## Plot data ------------------------------------------------------------------
@@ -2748,3 +2754,127 @@ Data_1m2 %>%
             aes(x=MowFreq, y=max+0.2,
                 label=.group),
             size=3.5, col="black") 
+
+
+
+# 6) R2 figure -----------------------------------------------------------------
+
+# Function to extract partial R2 AND coefficient sign
+get_partial_r2_with_sign <- function(model, response_name) {
+  tryCatch({
+    # Get partial R²
+    r2_df <- r2glmm::r2beta(model, partial = TRUE) |>
+      as.data.frame() |>
+      filter(Effect != "Model") |>
+      select(Effect, Rsq) |>
+      rename(Driver = Effect, partial_R2 = Rsq)
+    
+    # Get coefficient signs from model
+    coefs <- fixef(model)
+    coef_df <- data.frame(
+      Driver = names(coefs),
+      sign = ifelse(coefs > 0, "positive", "negative")
+    )
+    
+    # Join and return
+    r2_df |>
+      left_join(coef_df, by = "Driver") |>
+      mutate(
+        Response = response_name,
+        # For categorical variables (Month, MowFreq), set as NA or "mixed"
+        sign = ifelse(is.na(sign), "categorical", sign)
+      )
+  }, error = function(e) {
+    message(paste("Error with", response_name, ":", e$message))
+    return(NULL)
+  })
+}
+
+# Combine all models
+all_r2 <- bind_rows(
+  get_partial_r2_with_sign(m2_biomass, "Biomass"),
+  get_partial_r2_with_sign(m2_SR_dummy, "Species richness"),
+  get_partial_r2_with_sign(m2_evenness, "Hill-Simpson diversity"),
+  get_partial_r2_with_sign(m2_phen_Richness, "Phenological richness"),
+  get_partial_r2_with_sign(m2_phen_evenness, "Phenological evenness"),
+  get_partial_r2_with_sign(m2_FRic, "Functional richness"),
+  get_partial_r2_with_sign(m2_FEve, "Functional evenness"),
+  get_partial_r2_with_sign(m2_FDis, "Functional dispersion")
+)
+
+# Clean driver names
+all_r2 <- all_r2 |>
+  mutate(Driver_clean = case_when(
+    grepl("MowFreq:Month|Month:MowFreq", Driver) ~ "Management × Season",
+    grepl("MowFreq", Driver) ~ "Management",
+    grepl("Month", Driver) ~ "Season",
+    grepl("road_density", Driver) ~ "Road density",
+    grepl("Litter_Cover", Driver) ~ "Litter cover",
+    grepl("n_mow_events", Driver) ~ "Mowing events",
+    grepl("patch_size", Driver) ~ "Patch size",
+    grepl("Biotop_richness", Driver) ~ "Landscape heterogeneity",
+    grepl("slope_degr", Driver) ~ "Slope",
+    grepl("dist_tree", Driver) ~ "Tree distance",
+    grepl("sky_view", Driver) ~ "Sky-view factor",
+    grepl("Bare_Ground", Driver) ~ "Bare ground",
+    grepl("green_cover", Driver) ~ "Green cover",
+    TRUE ~ Driver
+  )) |>
+  # Set categorical variables
+  mutate(sign = case_when(
+    Driver_clean %in% c("Management × Season", "Management", "Season") ~ "categorical",
+    TRUE ~ sign
+  ))
+
+# Set order of responses
+all_r2 <- all_r2 |>
+  mutate(Response = factor(Response, levels = c(
+    "Biomass", "Species richness", "Hill-Simpson diversity",
+    "Phenological richness", "Phenological evenness",
+    "Functional richness", "Functional evenness", "Functional dispersion"
+  )))
+
+# Set order of drivers
+all_r2 <- all_r2 |>
+  mutate(Driver_clean = factor(Driver_clean, levels = c(
+    "Management × Season",
+    "Management",
+    "Season",
+    "Mowing events",
+    "Litter cover",
+    "Bare ground",
+    "Slope",
+    "Tree distance",
+    "Sky-view factor",
+    "Patch size",
+    "Landscape heterogeneity",
+    "Green cover",
+    "Road density"
+  )))
+
+# Plot with color by sign
+ggplot(all_r2 %>% 
+         mutate(sign=case_when(
+           sign == "positive" ~ "positive effect",
+           sign == "negative" ~ "negative effect",
+           TRUE ~ "categorical driver"
+         ))
+       , aes(x = Response, y = Driver_clean, fill = sign, size = partial_R2)) +
+  geom_point(shape = 21, stroke = 0.5) +
+  scale_fill_manual(
+    values = c("negative effect" = "#B2182B", "positive effect" = "#2166AC", 
+               "categorical driver" = "grey65"),
+    name = "Effect type"
+  ) +
+  scale_size_continuous(
+    range = c(1, 8),
+    name = expression(Partial~R^2)
+  ) +
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    panel.grid.major = element_line(color = "grey90"),
+    legend.position = "right"
+  ) +
+  guides(fill = guide_legend(override.aes = list(size = 5))) +
+  labs(x = "Response variables", y = "Drivers")
