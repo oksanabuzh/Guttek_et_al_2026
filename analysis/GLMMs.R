@@ -21,6 +21,7 @@ library(conflicted)
 # Prefer dplyr's select whenever there is a conflict
 conflict_prefer("select", "dplyr")
 conflict_prefer("filter", "dplyr")
+conflict_prefer("lmer", "lmerTest")
 
 # R version
 R.version.string
@@ -134,13 +135,14 @@ Data_1m2 <- Dat1_1m2 %>%
   left_join(GIS_500 %>% 
             select(PlotNo, protected_biotopes_polygons_cover_pct, 
                    green_cover_pct, # (correlation with impervious serfices)
+                   impervious_pct,
                    road_density_km_per_ha) %>% 
               rename(protected_cover_pct=protected_biotopes_polygons_cover_pct),
             by = c("PlotNo")) %>% 
   mutate(protected_cover_pct_log = log1p(protected_cover_pct),
          green_cover_pct_log=log1p(green_cover_pct),
-         patch_size_m2_scaled = scale(patch_size_m2),
-         road_density_km_per_ha_scaled = scale(road_density_km_per_ha)) %>% 
+         patch_size_m2_scaled = as.vector(scale(patch_size_m2)),
+         road_density_km_per_ha_scaled = as.vector(scale(road_density_km_per_ha))) %>% 
   mutate(MowFreq=fct_relevel(MowFreq,"regular", 
                              "reduced", 
                              "reduced & sowing")) %>% 
@@ -152,19 +154,6 @@ names(Data_1m2)
 Data_1m2 %>% 
   write_csv("data/processed_data/Data_1m2_analysis.csv")
 
-# Predictors (selected):
-
-` # plot data
-Month * MowFreq +  n_mow_events_befre_sampling +
-  # field data from vegetation survays (cover data)
-  Bare_Ground_Cover + Litter_Cover + 
-  # mapping in field
-  slope_degr + dist_tree + sky_view_factor +
-  # GIS data
-  # patch_size_m2  # correlates strongly with MowFreq
-  Biotop_richness_specific + 
-  # 500 m buffer
-  protected_cover_pct + green_cover_pct + road_density_km_per_ha`
 
 # assigning colors for the plots
 MowFreq_col <- c("#F8766D", "#00B0F6","#00BA38")
@@ -180,7 +169,7 @@ Data_1m2 %>%
          n_mow_events_befre_sampling,
          Bare_Ground_Cover, Litter_Cover, slope_degr, dist_tree, 
          sky_view_factor, patch_size_m2, Biotop_richness_specific, 
-         green_cover_pct_log, road_density_km_per_ha, protected_cover_pct) %>% 
+         green_cover_pct_log, impervious_pct, protected_cover_pct) %>% 
   pivot_longer(-c(Month, biomass), 
                names_to = "variable", values_to = "value") %>%
   ggplot(aes(x = value, y = biomass)) +
@@ -198,16 +187,18 @@ Data_1m2 %>%
   select(biomass)
 
 m1_biomass <- lmerTest::lmer(biomass ~ 
-                               MowFreq*Month +  
-                               scale(n_mow_events_befre_sampling) +
+                              MowFreq*Month +  
+                               scale(log1p(n_mow_events_befre_sampling)) +
                                scale(Litter_Cover) + 
-                               scale(road_density_km_per_ha) + 
-                               scale(patch_size_m2) +
+                         #      scale(road_density_km_per_ha) + 
+                         #      scale(patch_size_m2) +
                                Bare_Ground_Cover + 
                                scale(slope_degr) + scale(dist_tree) + 
                                scale(sky_view_factor) +
                                scale(Biotop_richness_specific) + 
-                               scale(green_cover_pct) + 
+                          scale(protected_cover_pct) + 
+                           #    scale(green_cover_pct) + 
+                        # scale(impervious_pct) +
                                (1|PlotNo),
                              data = Data_1m2)
 
@@ -221,115 +212,44 @@ drop1(m1_biomass)
 
 # interaction is  significant
 
-# remove patch_size_m2
-m2_biomass <- lmerTest::lmer(biomass ~ 
-                               MowFreq*Month +  
-                               scale(n_mow_events_befre_sampling) +
-                               scale(Litter_Cover) + 
-                               scale(road_density_km_per_ha) + 
-                               # log(patch_size_m2) +
-                               Bare_Ground_Cover + 
-                               scale(slope_degr) + scale(dist_tree) + 
-                               scale(sky_view_factor) +
-                               scale(Biotop_richness_specific) + 
-                               log1p(green_cover_pct) + 
-                               (1|PlotNo),
-                             data = Data_1m2)
-
-
-
-summary(m2_biomass)
-# check model assumptions
-check_convergence(m2_biomass)
-check_model(m2_biomass)
-
-anova(m1_biomass, m2_biomass)
-# m2_biomass
-
-# check predictor effects
-drop1(m2_biomass)
-# Anova(m2_biomass, type = "II")
 
 ## R2 ---------------------------------------------------------------
 # R2 for the entire model
-MuMIn::r.squaredGLMM(m2_biomass)
+MuMIn::r.squaredGLMM(m1_biomass)
 # Partial R2 for fixed effects
-r2glmm::r2beta(m2_biomass,  partial = T)
+r2glmm::r2beta(m1_biomass,  partial = T)
 
-Mod_results_biomass <- drop1(m2_biomass) %>% as.data.frame() %>% 
+Mod_results_biomass <- drop1(m1_biomass) %>% as.data.frame() %>% 
   rownames_to_column("Driver") %>% select(-"Sum Sq", -"Mean Sq") %>% 
  # relocate raw "MowFreq:Month" in column "Driver" to the top
   arrange(Driver != "MowFreq:Month") %>% 
   left_join(
-    r2glmm::r2beta(m2_biomass,  partial = T) %>% as.data.frame() %>% 
+    r2glmm::r2beta(m1_biomass,  partial = T) %>% as.data.frame() %>% 
               rename(Driver="Effect") %>% 
               select(Driver,  Rsq), by = "Driver") %>% 
   mutate(Responce = "biomass",.before= Driver)
 
 Mod_results_biomass %>% 
   write_csv("results/LMM_biomass.csv")
+
 ## Plots ------------------------------------------------------------------------
 
 library(effects)
-plot(allEffects(m2_biomass))
+plot(allEffects(m1_biomass))
 
 
-##  road_density_km_per_ha  ---------
-Data_1m2$biomass %>% 
-  summary()
+##  Mowing events before sampling  ---------
 
-# m2_biomass_Road_pred <- ggpredict(m2_biomass, terms = c("road_density_km_per_ha")) %>% as.data.frame()
-# Very large CI
-# "ggeffects" includes both fixed and random effect uncertainty
-# "effects" Includes only fixed effect uncertainty
-library(effects)
-m2_biomass_Road_pred <- Effect("road_density_km_per_ha", m2_biomass) %>% 
+mow_events_range = seq(min(Data_1m2$n_mow_events_befre_sampling),
+                       max(Data_1m2$n_mow_events_befre_sampling), 
+                       by = 0.001)
+
+m1_biomass_Mow_pred <- Effect("n_mow_events_befre_sampling", m1_biomass,
+                              xlevels = list(n_mow_events_befre_sampling = mow_events_range)) %>% 
   as.data.frame()
 
-ggplot(m2_biomass_Road_pred, aes(x = road_density_km_per_ha, y = fit)) +
-  # add CI across all dataset
-  geom_ribbon(aes(ymin = lower, ymax = upper), 
-              alpha = 0.1) +
-  geom_point(data=Data_1m2,
-             aes(road_density_km_per_ha, biomass, color=Month), 
-             pch=19, size=1.5, alpha=0.6, stroke = 0.8,
-             position = position_jitter(width = 0, height = 0)) +
-  geom_line(linewidth = 1) +
-  theme_bw() +
-  scale_color_manual(values = Month_col) +
-  scale_fill_manual(values = Month_col) +
-  labs(x = "Road density (km/ha)", 
-       y = "Biomass") 
-
-##  Litter_Cover  ---------
-Data_1m2$Litter_Cover %>% 
-  summary()
-
-# m2_biomass_Litter_pred <- ggpredict(m2_biomass, terms = c("Litter_Cover[2.00:65.00, by=0.01]")) %>% as.data.frame()
-m2_biomass_Litter_pred <- Effect("Litter_Cover", m2_biomass) %>% 
-  as.data.frame()
-
-ggplot(m2_biomass_Litter_pred, aes(Litter_Cover, y = fit)) +
-  # add CI across all dataset
-  geom_ribbon(aes(ymin = lower, ymax = upper), 
-              alpha = 0.1) +
-  geom_point(data=Data_1m2,
-             aes(Litter_Cover, biomass, color=Month), 
-             pch=19, size=1.5, alpha=0.6, stroke = 0.8,
-             position = position_jitter(width = 0, height = 0)) +
-  geom_line(linewidth = 1) +
-  theme_bw() +
-  scale_color_manual(values = Month_col) +
-  scale_fill_manual(values = Month_col) +
-  labs(x = "Litter cover, %", 
-       y = "Biomass") 
-
-##  mowing events before sampling  ---------
-
-m2_biomass_Mow_pred <- Effect("n_mow_events_befre_sampling", m2_biomass) %>% 
-  as.data.frame()
-
-ggplot(m2_biomass_Mow_pred, aes(x = n_mow_events_befre_sampling, y = fit)) +
+plot_Biomass_Mow_ev <- ggplot(m1_biomass_Mow_pred, 
+                              aes(x = n_mow_events_befre_sampling, y = fit)) +
   # add CI across all dataset
   geom_ribbon(aes(ymin = lower, ymax = upper), 
               alpha = 0.1) +
@@ -344,38 +264,111 @@ ggplot(m2_biomass_Mow_pred, aes(x = n_mow_events_befre_sampling, y = fit)) +
   labs(x = "Mowing events before sampling", 
        y = "Biomass") 
 
-##  Biotop_richness_specific  ---------
-Data_1m2$Biotop_richness_specific %>% 
-  summary()
+plot_Biomass_Mow_ev
 
-# m2_biomass_Litter_pred <- ggpredict(m2_biomass, terms = c("Biotop_richness_specific")) %>% as.data.frame()
-m2_biomass_Biotop_pred <- Effect("Biotop_richness_specific", m2_biomass) %>% 
+##  Litter_Cover  ---------
+
+Litter_range = seq(min(Data_1m2$Litter_Cover),
+                   max(Data_1m2$Litter_Cover), 
+                   by = 0.01)
+
+m1_biomass_Litter_pred <- Effect("Litter_Cover", 
+                                 m1_biomass,
+                                 xlevels = list(Litter_Cover = Litter_range)) %>% 
   as.data.frame()
 
-ggplot(m2_biomass_Biotop_pred, aes(Biotop_richness_specific, y = fit)) +
+plot_Biomass_Litter <- ggplot(m1_biomass_Litter_pred, aes(Litter_Cover, y = fit)) +
   # add CI across all dataset
   geom_ribbon(aes(ymin = lower, ymax = upper), 
               alpha = 0.1) +
   geom_point(data=Data_1m2,
-             aes(Biotop_richness_specific, biomass, color=Month), 
+             aes(Litter_Cover, biomass, color=Month), 
              pch=19, size=1.5, alpha=0.6, stroke = 0.8,
              position = position_jitter(width = 0, height = 0)) +
   geom_line(linewidth = 1) +
   theme_bw() +
   scale_color_manual(values = Month_col) +
   scale_fill_manual(values = Month_col) +
-  labs(x = "Landscape heterogeneity", 
+  labs(x = "Litter cover, %", 
+       y = "Biomass") 
+
+plot_Biomass_Litter
+
+##  Bare_Ground_Cover  ---------
+
+BareSoil_range = seq(min(Data_1m2$Bare_Ground_Cover),
+                     max(Data_1m2$Bare_Ground_Cover), 
+                     by = 0.001)
+
+m1_Biomass_BareSoil_pred <- Effect("Bare_Ground_Cover", 
+                                   m1_biomass,
+                                   xlevels = list(Bare_Ground_Cover = BareSoil_range)) %>% 
+  as.data.frame() 
+
+plot_Biomass_BareSoil <- ggplot(m1_Biomass_BareSoil_pred, 
+                                aes(x = Bare_Ground_Cover, y = fit)) +
+  # add CI across all dataset
+  geom_ribbon(aes(ymin = lower, ymax = upper), 
+              alpha = 0.1) +
+  geom_point(data=Data_1m2,
+             aes(Bare_Ground_Cover, biomass, color=Month), 
+             pch=19, size=1.5, alpha=0.6, stroke = 0.8,
+             position = position_jitter(width = 0, height = 0)) +
+  geom_line(linewidth = 0.8, linetype="dashed") +
+  theme_bw() +
+  scale_color_manual(values = Month_col) +
+  scale_fill_manual(values = Month_col) +
+  labs(x = "Bare ground cover (%)",
+       y = "Biomass") 
+
+plot_Biomass_BareSoil
+
+
+##  Slope effect   -------------------------------------------------------------
+
+Slope_range = seq(min(Data_1m2$slope_degr),
+                  max(Data_1m2$slope_degr), 
+                  by = 0.001)
+
+m1_Biomass_slope_pred <- Effect("slope_degr", 
+                                m1_biomass,
+                                xlevels = list(slope_degr = Slope_range)) %>% 
+  as.data.frame() 
+
+
+plot_Biomass_Slope <-ggplot(m1_Biomass_slope_pred, aes(slope_degr, y = fit)) +
+  # add CI across all dataset
+  geom_ribbon(aes(ymin = lower, ymax = upper), 
+              alpha = 0.1) +
+  geom_point(data=Data_1m2,
+             aes(slope_degr, biomass, color=Month), 
+             pch=19, size=1.5, alpha=0.6, stroke = 0.8,
+             position = position_jitter(width = 0, height = 0)) +
+  geom_line(linewidth = 0.8, linetype="dashed") +
+  theme_bw() +
+  scale_color_manual(values = Month_col) +
+  scale_fill_manual(values = Month_col) +
+  labs(x = "Slope", 
        y = "Biomass") 
 
 
-##  dist_tree  ---------
-Data_1m2$dist_tree %>% 
-  summary()
+plot_Biomass_Slope
 
-m2_biomass_Patch_pred <- Effect("dist_tree", m2_biomass) %>% 
+
+
+## Ttree distance  ----------------------------------------------------------------
+Tree_dist_range = seq(min(Data_1m2$dist_tree),
+                      max(Data_1m2$dist_tree), 
+                      by = 0.001)
+
+m1_Biomass_TreeDist_pred <- Effect("dist_tree", 
+                                   m1_biomass,
+                                   xlevels = list(dist_tree = Tree_dist_range)) %>% 
   as.data.frame() 
 
-ggplot(m2_biomass_Patch_pred, aes(x = dist_tree, y = fit)) +
+
+plot_Biomass_TreeDist <-
+  ggplot(m1_Biomass_TreeDist_pred, aes(x = dist_tree, y = fit)) +
   # add CI across all dataset
   geom_ribbon(aes(ymin = lower, ymax = upper), 
               alpha = 0.1) +
@@ -383,49 +376,126 @@ ggplot(m2_biomass_Patch_pred, aes(x = dist_tree, y = fit)) +
              aes(dist_tree, biomass, color=Month), 
              pch=19, size=1.5, alpha=0.6, stroke = 0.8,
              position = position_jitter(width = 0, height = 0)) +
-  geom_line(linewidth = 1) +
+  geom_line(linewidth = 0.8, linetype="dashed") +
   theme_bw() +
   scale_color_manual(values = Month_col) +
   scale_fill_manual(values = Month_col) +
   labs(x = "Tree distance (m)",
        y = "Biomass") 
 
+plot_Biomass_TreeDist
 
 
-##  green_cover_pct  ---------
-Data_1m2$green_cover_pct %>% 
-  summary()
+##  Sky view   -----------------------------------------------------------
 
-m2_biomass_green_pred <- Effect("green_cover_pct", m2_biomass) %>% 
+Sky_range = seq(min(Data_1m2$sky_view_factor),
+                max(Data_1m2$sky_view_factor), 
+                by = 0.001)
+
+m1_Biomass_Sky_pred <- Effect("sky_view_factor", 
+                              m1_biomass,
+                              xlevels = list(sky_view_factor = Sky_range)) %>% 
   as.data.frame() 
 
-ggplot(m2_biomass_green_pred, aes(x = green_cover_pct, y = fit)) +
+
+plot_Biomass_Sky <- ggplot(m1_Biomass_Sky_pred, 
+                           aes(x = sky_view_factor, y = fit)) +
   # add CI across all dataset
   geom_ribbon(aes(ymin = lower, ymax = upper), 
               alpha = 0.1) +
   geom_point(data=Data_1m2,
-             aes(green_cover_pct, biomass, color=Month), 
+             aes(sky_view_factor, biomass, color=Month), 
              pch=19, size=1.5, alpha=0.6, stroke = 0.8,
              position = position_jitter(width = 0, height = 0)) +
-  geom_line(linewidth = 1) +
+  geom_line(linewidth = 0.8, linetype="dashed") +
   theme_bw() +
   scale_color_manual(values = Month_col) +
   scale_fill_manual(values = Month_col) +
-  labs(x = "Green cover (%)",
+  labs(x = "Sky-view factor",
        y = "Biomass") 
 
-## MowFreq -------
 
-emmeans(m2_biomass, list(pairwise ~ MowFreq))
+plot_Biomass_Sky
 
-emmeans_m2_biomass_MowFreq1 <- cld(emmeans(m2_biomass, list(pairwise ~ MowFreq)), 
+##  Biotop_richness_specific  --------------------------------------------------
+
+
+Biotop_range = seq(min(Data_1m2$Biotop_richness_specific),
+                   max(Data_1m2$Biotop_richness_specific), 
+                   by = 0.001)
+
+m1_biomass_Biotop_pred <- Effect("Biotop_richness_specific", 
+                                 m1_biomass,
+                                 xlevels = list(Biotop_richness_specific = Biotop_range)) %>% 
+  as.data.frame()
+
+plot_Biomass_Biotop <- ggplot(m1_biomass_Biotop_pred, 
+                              aes(Biotop_richness_specific, y = fit)) +
+  # add CI across all dataset
+  geom_ribbon(aes(ymin = lower, ymax = upper), 
+              alpha = 0.1) +
+  geom_point(data=Data_1m2,
+             aes(Biotop_richness_specific, biomass, color=Month), 
+             pch=19, size=1.5, alpha=0.6, stroke = 0.8,
+             position = position_jitter(width = 0, height = 0)) +
+  geom_line(linewidth = 0.8, linetype="dashed") +
+  theme_bw() +
+  scale_color_manual(values = Month_col) +
+  scale_fill_manual(values = Month_col) +
+  labs(x = "Landscape heterogeneity", 
+       y = "Biomass") 
+
+plot_Biomass_Biotop
+
+
+##  Protected areas  ----------------------------------------------------------
+
+
+ProtecArea_range = seq(min(Data_1m2$protected_cover_pct),
+                       max(Data_1m2$protected_cover_pct), 
+                       by = 0.001)
+
+m1_biomass_Protect_pred <- Effect("protected_cover_pct", 
+                                  m1_biomass,
+                                  xlevels = list(protected_cover_pct = ProtecArea_range))%>% 
+  as.data.frame() 
+
+
+
+plot_Biomass_ProtcArea <- ggplot(m1_biomass_Protect_pred, 
+                                 aes(x = protected_cover_pct, y = fit)) +
+  # add CI across all dataset
+  geom_ribbon(aes(ymin = lower, ymax = upper), 
+              alpha = 0.1) +
+  geom_point(data=Data_1m2,
+             aes(protected_cover_pct, biomass, color=Month), 
+             pch=19, size=1.5, alpha=0.6, stroke = 0.8,
+             position = position_jitter(width = 0, height = 0)) +
+  geom_line(linewidth = 0.8, linetype="dashed") +
+  theme_bw() +
+  scale_color_manual(values = Month_col) +
+  scale_fill_manual(values = Month_col) +
+  labs(x = "Protected areas (%)",
+       y = "Biomass") 
+
+plot_Biomass_ProtcArea
+
+
+## Management ---------------------------------------------------------------------
+
+m1_biomass_no_int <- update(m1_biomass, . ~ . - MowFreq:Month) # we remove interaction for lotting main effcets
+drop1(m1_biomass_no_int)
+
+emmeans(m1_biomass_no_int, list(pairwise ~ MowFreq))
+
+emmeans_m1_biomass_MowFreq1 <- cld(emmeans(m1_biomass_no_int, list(pairwise ~ MowFreq)), 
                                    Letters = letters) %>% 
   arrange(MowFreq)
 
 biomass_max1 <-  Data_1m2 %>% 
   summarise(max=max(biomass), .by = c(MowFreq))
 
-Data_1m2 %>% 
+plot_Biomass_Management <- Data_1m2 %>% 
   ggplot(aes(x = MowFreq, y = biomass)) +
   theme_bw() +
   geom_point(aes(color=Month),
@@ -435,25 +505,28 @@ Data_1m2 %>%
   labs(x = "Management", y = "Biomass") +
   scale_color_manual(values = Month_col) +
   # theme(legend.position = "none") +
-  geom_text(data=emmeans_m2_biomass_MowFreq1 %>% 
+  geom_text(data=emmeans_m1_biomass_MowFreq1 %>% 
               left_join(biomass_max1, by=c("MowFreq")),
-            aes(x=MowFreq, y=max+3,
-                label=.group),
+            aes(x=MowFreq, y=max+400,
+                # marginally signififcant difference, thus replace with custem letters
+                label=  c("a", "ab", "b'" ) # .group 
+            ),
             size=3.5, col="black") 
 
+plot_Biomass_Management
 
-## Month -------
+## Month ----------------------------------------------------------------------
 
-emmeans(m2_biomass, list(pairwise ~ Month))
+emmeans(m1_biomass_no_int, list(pairwise ~ Month))
 
-emmeans_m2_biomass_Month <- cld(emmeans(m2_biomass, list(pairwise ~ Month)), 
+emmeans_m1_biomass_Month <- cld(emmeans(m1_biomass_no_int, list(pairwise ~ Month)), 
                                 Letters = letters) %>% 
   arrange(Month)
 
 biomass_max2 <-  Data_1m2 %>% 
   summarise(max=max(biomass), .by = c(Month))
 
-Data_1m2 %>% 
+plot_Biomass_Month <- Data_1m2 %>% 
   ggplot(aes(x = Month, y = biomass)) +
   theme_bw() +
   geom_point(aes(color=Month),
@@ -463,24 +536,30 @@ Data_1m2 %>%
   labs(x = "Month", y = "Biomass") +
   scale_color_manual(values = Month_col) +
   # theme(legend.position = "none") +
-  geom_text(data=emmeans_m2_biomass_Month %>% 
+  geom_text(data=emmeans_m1_biomass_Month %>% 
               left_join(biomass_max2, by=c("Month")),
-            aes(x=Month, y=max+5,
+            aes(x=Month, y=max+500,
+                # marginally signififcant difference, thus replace with custem letters
+                label=  c("a", "ab", "b'" )
                 label=.group),
             size=3.5, col="black")
 
-## MowFreq * Month  -------
 
-emmeans(m2_biomass, list(pairwise ~ MowFreq | Month))
+plot_Biomass_Month
 
-emmeans_m2_biomass_MowFreq <- cld(emmeans(m2_biomass, list(pairwise ~ MowFreq | Month)), 
+## MowFreq * Month  ------------------------------------------------------------
+
+emmeans(m1_biomass, list(pairwise ~ MowFreq | Month))
+
+emmeans_m1_biomass_MowFreq <- cld(emmeans(m1_biomass, list(pairwise ~ MowFreq | Month)), 
                                   Letters = letters) %>% 
-  arrange(MowFreq)
+  arrange(MowFreq) %>% 
+  as.tibble()
 
 biomass_max <-  Data_1m2 %>% 
   summarise(max=max(biomass), .by = c(MowFreq, Month))
 
-Data_1m2 %>% 
+plot_Biomass_Month_Manag_intr <- Data_1m2 %>% 
   ggplot(aes(x = MowFreq, y = biomass)) +
   theme_bw() +
   geom_point(aes(color=Month),
@@ -491,12 +570,42 @@ Data_1m2 %>%
   facet_wrap(~Month) +
   scale_color_manual(values = Month_col) +
   theme(legend.position = "none") +
-  geom_text(data=emmeans_m2_biomass_MowFreq %>% 
-              left_join(biomass_max, by=c("MowFreq", "Month")),
+  geom_text(data=emmeans_m1_biomass_MowFreq %>% 
+              left_join(biomass_max, by=c("MowFreq", "Month"))%>% 
+              mutate(.group = case_when(
+                Month == "July" & MowFreq == "regular" ~ "a",
+                Month == "July" & MowFreq == "reduced" ~ "b'",
+                Month == "July" & MowFreq == "reduced & sowing" ~ "ab",
+                TRUE ~ .group)),
             aes(x=MowFreq, y=max+1120,
                 label=.group),
             size=3.5, col="black") 
 
+plot_Biomass_Month_Manag_intr
+
+
+## COMBINE PLOTS ---------------------------------------------------------------
+
+library(patchwork)
+
+combined_Biomass <- 
+  plot_Biomass_Mow_ev + plot_Biomass_Litter +
+  plot_Biomass_BareSoil + plot_Biomass_Slope + 
+  plot_Biomass_TreeDist + plot_Biomass_Sky + 
+  plot_Biomass_Biotop + plot_Biomass_ProtcArea + 
+  # plot_Biomass_Management + plot_Biomass_Month +
+  plot_layout(ncol = 2, guides = "collect") +
+  plot_annotation(tag_levels = "A") &
+  theme(
+    plot.tag = element_text(face = 'bold', size = 15),
+    plot.tag.position = c(0.1, 1.05),
+    plot.margin = margin(t = 22, r = 10, b = 10, l = 10)
+  )
+
+print(combined_Biomass)
+
+
+ggsave("results/plots/Biomass.png", combined_Biomass, width = 7, height = 10, dpi = 450)
 
 
 
@@ -512,7 +621,7 @@ Data_1m2 %>%
          n_mow_events_befre_sampling,
          Bare_Ground_Cover, Litter_Cover, slope_degr, dist_tree, 
          sky_view_factor, patch_size_m2, Biotop_richness_specific, 
-         green_cover_pct_log, road_density_km_per_ha, protected_cover_pct) %>% 
+         green_cover_pct_log, impervious_pct, protected_cover_pct) %>% 
   pivot_longer(-c(Month, SR), 
                names_to = "variable", values_to = "value") %>%
   ggplot(aes(x = value, y = SR)) +
@@ -530,16 +639,17 @@ Data_1m2 %>%
   select(SR)
 
 m1_SR <- glmer(SR ~ 
-                 Month * MowFreq +  
+                 MowFreq*Month +  
                  scale(n_mow_events_befre_sampling) +
                  scale(Litter_Cover) + 
-                 scale(road_density_km_per_ha) + 
-                 scale(patch_size_m2) +
+                 #      scale(road_density_km_per_ha) + 
+                 #      scale(patch_size_m2) +
                  Bare_Ground_Cover + 
                  scale(slope_degr) + scale(dist_tree) + 
                  scale(sky_view_factor) +
                  scale(Biotop_richness_specific) + 
-                 scale(green_cover_pct) + 
+                 scale(protected_cover_pct) + #  scale(impervious_pct) +
+                 #   scale(green_cover_pct) + 
                  (1|PlotNo),
                family = poisson,
                control = glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 200000)),  
@@ -555,43 +665,22 @@ check_collinearity(m1_SR)
 drop1(m1_SR, test = "Chisq")
 
 # interaction is not significant, remove the interaction term
-m2_SR_a <- glmer(SR ~ 
-                   Month + MowFreq +  
+m2_SR <- glmer(SR ~ MowFreq + Month +  
                    scale(n_mow_events_befre_sampling) +
                    scale(Litter_Cover) + 
-                   scale(road_density_km_per_ha) + 
-                   scale(patch_size_m2) +
-                   scale(Bare_Ground_Cover) + 
-                   scale(slope_degr) + scale(dist_tree) + 
+                   #      scale(road_density_km_per_ha) + 
+                   #      scale(patch_size_m2) +
+                   Bare_Ground_Cover + 
+                   scale(log1p(slope_degr)) + scale(dist_tree) + 
                    scale(sky_view_factor) +
-                   scale(Biotop_richness_specific) + 
-                   log1p(green_cover_pct) + 
+                  scale(log1p(Biotop_richness_specific)) + 
+                  scale(protected_cover_pct) +  # scale(impervious_pct) +
+                  #   scale(green_cover_pct) + 
                    (1|PlotNo),
                  family = poisson,
                  control = glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 200000)),  
                  data = Data_1m2)
 
-# remove  patch_size_m2
-m2_SR <- glmer(SR ~ 
-                 Month + MowFreq +  
-                 scale(n_mow_events_befre_sampling) +
-                 scale(Litter_Cover) + 
-                 scale(road_density_km_per_ha) + 
-                 #  scale(patch_size_m2) +
-                 scale(Bare_Ground_Cover) + 
-                 scale(slope_degr) + scale(dist_tree) + 
-                 scale(sky_view_factor) +
-                 scale(Biotop_richness_specific) + 
-                 log1p(green_cover_pct) + 
-                 (1|PlotNo),
-               family = poisson,
-               control = glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 200000)),  
-               data = Data_1m2)
-
-
-# compare model without patch_size_m2
-anova(m2_SR_a, m2_SR)
-# keep simpler model
 
 summary(m2_SR)
 
@@ -617,24 +706,23 @@ Data_1m2_dummy <-Data_1m2 %>%
   mutate(
     n_mow_events_scaled = scale(n_mow_events_befre_sampling),
     Litter_Cover_scaled = scale(Litter_Cover),
-    road_density_scaled = scale(road_density_km_per_ha),
     Bare_Ground_scaled = scale(Bare_Ground_Cover),
-    slope_degr_scaled = scale(slope_degr),
+    slope_degr_scaled = scale(log1p(slope_degr)) ,
     dist_tree_scaled = scale(dist_tree),
     sky_view_factor_scaled = scale(sky_view_factor),
-    Biotop_richness_scaled = scale(Biotop_richness_specific),
-    green_cover_log = log1p(green_cover_pct))
+    Biotop_richness_scaled = scale(log1p(Biotop_richness_specific)),
+    protected_cover_scaled = scale(protected_cover_pct))
 
 m2_SR_dummy <- glmer(SR ~ 
                  Month + MowFreq +  
                  n_mow_events_scaled +
                  Litter_Cover_scaled + 
-                 road_density_scaled + 
                  Bare_Ground_scaled + 
-                 slope_degr_scaled + dist_tree_scaled + 
+                 slope_degr_scaled + 
+                   dist_tree_scaled + 
                  sky_view_factor_scaled +
                  Biotop_richness_scaled + 
-                 green_cover_log + 
+                   protected_cover_scaled + 
                  (1|PlotNo),
                family = poisson,
                control = glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 200000)),  
@@ -663,46 +751,199 @@ Mod_results_SR %>%
 library(effects)
 plot(allEffects(m2_SR))
 
+##  Mowing events before sampling  ---------
 
+mow_events_range = seq(min(Data_1m2$n_mow_events_befre_sampling),
+                       max(Data_1m2$n_mow_events_befre_sampling), 
+                       by = 0.001)
 
-
-##  road_density_km_per_ha  ---------
-Data_1m2$SR %>% 
-  summary()
-
-# m2_SR_Road_pred <- ggpredict(m2_SR, terms = c("road_density_km_per_ha")) %>% as.data.frame()
-# Very large CI
-# "ggeffects" includes both fixed and random effect uncertainty
-# "effects" Includes only fixed effect uncertainty
-library(effects)
-m2_SR_Road_pred <- Effect("road_density_km_per_ha", m2_SR) %>% 
+m2_SR_Mow_pred <- Effect("n_mow_events_befre_sampling", m2_SR,
+                         xlevels = list(n_mow_events_befre_sampling = mow_events_range)) %>% 
   as.data.frame()
 
-ggplot(m2_SR_Road_pred, aes(x = road_density_km_per_ha, y = fit)) +
+plot_SR_Mow_ev <- ggplot(m2_SR_Mow_pred, 
+                         aes(x = n_mow_events_befre_sampling, y = fit)) +
   # add CI across all dataset
   geom_ribbon(aes(ymin = lower, ymax = upper), 
               alpha = 0.1) +
   geom_point(data=Data_1m2,
-             aes(road_density_km_per_ha, SR, color=Month), 
+             aes(n_mow_events_befre_sampling, SR, color=Month), 
              pch=19, size=1.5, alpha=0.6, stroke = 0.8,
-             position = position_jitter(width = 0, height = 0)) +
-  geom_line(linewidth = 1) +
+             position = position_jitter(width = 0.08, height = 0)) +
+  geom_line(linewidth = 0.8, linetype="dashed") +
   theme_bw() +
   scale_color_manual(values = Month_col) +
   scale_fill_manual(values = Month_col) +
-  labs(x = "Road density (km/ha)", 
+  labs(x = "Mowing events before sampling", 
+       y = "Species richness") 
+
+plot_SR_Mow_ev
+
+##  Litter_Cover  ---------
+
+Litter_range = seq(min(Data_1m2$Litter_Cover),
+                   max(Data_1m2$Litter_Cover), 
+                   by = 0.01)
+
+m2_SR_Litter_pred <- Effect("Litter_Cover", 
+                            m2_SR,
+                            xlevels = list(Litter_Cover = Litter_range)) %>% 
+  as.data.frame()
+
+plot_SR_Litter <- ggplot(m2_SR_Litter_pred, aes(Litter_Cover, y = fit)) +
+  # add CI across all dataset
+  geom_ribbon(aes(ymin = lower, ymax = upper), 
+              alpha = 0.1) +
+  geom_point(data=Data_1m2,
+             aes(Litter_Cover, SR, color=Month), 
+             pch=19, size=1.5, alpha=0.6, stroke = 0.8,
+             position = position_jitter(width = 0, height = 0)) +
+  geom_line(linewidth = 0.8, linetype="dashed") +
+  theme_bw() +
+  scale_color_manual(values = Month_col) +
+  scale_fill_manual(values = Month_col) +
+  labs(x = "Litter cover, %", 
+       y = "Species richness") 
+
+plot_SR_Litter
+
+##  Bare_Ground_Cover  ---------
+
+BareSoil_range = seq(min(Data_1m2$Bare_Ground_Cover),
+                     max(Data_1m2$Bare_Ground_Cover), 
+                     by = 0.001)
+
+m2_SR_BareSoil_pred <- Effect("Bare_Ground_Cover", 
+                              m2_SR,
+                              xlevels = list(Bare_Ground_Cover = BareSoil_range)) %>% 
+  as.data.frame() 
+
+plot_SR_BareSoil <- ggplot(m2_SR_BareSoil_pred, 
+                           aes(x = Bare_Ground_Cover, y = fit)) +
+  # add CI across all dataset
+  geom_ribbon(aes(ymin = lower, ymax = upper), 
+              alpha = 0.1) +
+  geom_point(data=Data_1m2,
+             aes(Bare_Ground_Cover, SR, color=Month), 
+             pch=19, size=1.5, alpha=0.6, stroke = 0.8,
+             position = position_jitter(width = 0, height = 0)) +
+  geom_line(linewidth = 0.8, linetype="dashed") +
+  theme_bw() +
+  scale_color_manual(values = Month_col) +
+  scale_fill_manual(values = Month_col) +
+  labs(x = "Bare ground cover (%)",
+       y = "Species richness") 
+
+plot_SR_BareSoil
+
+
+##  Slope effect   -------------------------------------------------------------
+
+Slope_range = seq(min(Data_1m2$slope_degr),
+                  max(Data_1m2$slope_degr), 
+                  by = 0.001)
+
+m2_SR_slope_pred <- Effect("slope_degr", 
+                           m2_SR,
+                           xlevels = list(slope_degr = Slope_range)) %>% 
+  as.data.frame() 
+
+
+plot_SR_Slope <-ggplot(m2_SR_slope_pred, aes(slope_degr, y = fit)) +
+  # add CI across all dataset
+  geom_ribbon(aes(ymin = lower, ymax = upper), 
+              alpha = 0.1) +
+  geom_point(data=Data_1m2,
+             aes(slope_degr, SR, color=Month), 
+             pch=19, size=1.5, alpha=0.6, stroke = 0.8,
+             position = position_jitter(width = 0, height = 0)) +
+  geom_line(linewidth = 0.5) +
+  theme_bw() +
+  scale_color_manual(values = Month_col) +
+  scale_fill_manual(values = Month_col) +
+  labs(x = "Slope", 
        y = "Species richness") 
 
 
-##  Biotop_richness_specific  ---------
-Data_1m2$Biotop_richness_specific %>% 
-  summary()
+plot_SR_Slope
 
-# m2_SR_Litter_pred <- ggpredict(m2_SR, terms = c("Biotop_richness_specific")) %>% as.data.frame()
-m2_SR_Biotop_pred <- Effect("Biotop_richness_specific", m2_SR) %>% 
+
+
+## Ttree distance  ----------------------------------------------------------------
+Tree_dist_range = seq(min(Data_1m2$dist_tree),
+                      max(Data_1m2$dist_tree), 
+                      by = 0.001)
+
+m2_SR_TreeDist_pred <- Effect("dist_tree", 
+                              m2_SR,
+                              xlevels = list(dist_tree = Tree_dist_range)) %>% 
+  as.data.frame() 
+
+
+plot_SR_TreeDist <-
+  ggplot(m2_SR_TreeDist_pred, aes(x = dist_tree, y = fit)) +
+  # add CI across all dataset
+  geom_ribbon(aes(ymin = lower, ymax = upper), 
+              alpha = 0.1) +
+  geom_point(data=Data_1m2,
+             aes(dist_tree, SR, color=Month), 
+             pch=19, size=1.5, alpha=0.6, stroke = 0.8,
+             position = position_jitter(width = 0, height = 0)) +
+  geom_line(linewidth = 0.8, linetype="dashed") +
+  theme_bw() +
+  scale_color_manual(values = Month_col) +
+  scale_fill_manual(values = Month_col) +
+  labs(x = "Tree distance (m)",
+       y = "Species richness") 
+
+plot_SR_TreeDist
+
+
+##  Sky view   -----------------------------------------------------------
+
+Sky_range = seq(min(Data_1m2$sky_view_factor),
+                max(Data_1m2$sky_view_factor), 
+                by = 0.001)
+
+m2_SR_Sky_pred <- Effect("sky_view_factor", 
+                         m2_SR,
+                         xlevels = list(sky_view_factor = Sky_range)) %>% 
+  as.data.frame() 
+
+
+plot_SR_Sky <- ggplot(m2_SR_Sky_pred, 
+                      aes(x = sky_view_factor, y = fit)) +
+  # add CI across all dataset
+  geom_ribbon(aes(ymin = lower, ymax = upper), 
+              alpha = 0.1) +
+  geom_point(data=Data_1m2,
+             aes(sky_view_factor, SR, color=Month), 
+             pch=19, size=1.5, alpha=0.6, stroke = 0.8,
+             position = position_jitter(width = 0, height = 0)) +
+  geom_line(linewidth = 0.8, linetype="dashed") +
+  theme_bw() +
+  scale_color_manual(values = Month_col) +
+  scale_fill_manual(values = Month_col) +
+  labs(x = "Sky-view factor",
+       y = "Species richness") 
+
+
+plot_SR_Sky
+
+##  Biotop_richness_specific  --------------------------------------------------
+
+
+Biotop_range = seq(min(Data_1m2$Biotop_richness_specific),
+                   max(Data_1m2$Biotop_richness_specific), 
+                   by = 0.001)
+
+m2_SR_Biotop_pred <- Effect("Biotop_richness_specific", 
+                            m2_SR,
+                            xlevels = list(Biotop_richness_specific = Biotop_range)) %>% 
   as.data.frame()
 
-ggplot(m2_SR_Biotop_pred, aes(Biotop_richness_specific, y = fit)) +
+plot_SR_Biotop <- ggplot(m2_SR_Biotop_pred, 
+                         aes(Biotop_richness_specific, y = fit)) +
   # add CI across all dataset
   geom_ribbon(aes(ymin = lower, ymax = upper), 
               alpha = 0.1) +
@@ -717,53 +958,43 @@ ggplot(m2_SR_Biotop_pred, aes(Biotop_richness_specific, y = fit)) +
   labs(x = "Landscape heterogeneity", 
        y = "Species richness") 
 
+plot_SR_Biotop
 
-##  slope_degr  ---------
-Data_1m2$slope_degr %>% 
-  summary()
 
-# m2_SR_Litter_pred <- ggpredict(m2_SR, terms = c("slope_degr[2.00:65.00, by=0.01]")) %>% as.data.frame()
-m2_SR_slope_pred <- Effect("slope_degr", m2_SR) %>% 
-  as.data.frame()
+##  Protected areas  ----------------------------------------------------------
 
-ggplot(m2_SR_slope_pred, aes(slope_degr, y = fit)) +
+
+ProtecArea_range = seq(min(Data_1m2$protected_cover_pct),
+                       max(Data_1m2$protected_cover_pct), 
+                       by = 0.001)
+
+m2_SR_Protect_pred <- Effect("protected_cover_pct", 
+                             m2_SR,
+                             xlevels = list(protected_cover_pct = ProtecArea_range))%>% 
+  as.data.frame() 
+
+
+
+plot_SR_ProtcArea <- ggplot(m2_SR_Protect_pred, 
+                            aes(x = protected_cover_pct, y = fit)) +
   # add CI across all dataset
   geom_ribbon(aes(ymin = lower, ymax = upper), 
               alpha = 0.1) +
   geom_point(data=Data_1m2,
-             aes(slope_degr, SR, color=Month), 
+             aes(protected_cover_pct, SR, color=Month), 
              pch=19, size=1.5, alpha=0.6, stroke = 0.8,
              position = position_jitter(width = 0, height = 0)) +
-  geom_line(linewidth = 1) +
+  geom_line(linewidth = 0.8, linetype="dashed") +
   theme_bw() +
   scale_color_manual(values = Month_col) +
   scale_fill_manual(values = Month_col) +
-  labs(x = "Slope", 
+  labs(x = "Protected areas (%)",
        y = "Species richness") 
 
-##  mowing events before sampling  ---------
-
-m2_SR_Mow_pred <- Effect("n_mow_events_befre_sampling", m2_SR) %>% 
-  as.data.frame()
-
-ggplot(m2_SR_Mow_pred, aes(x = n_mow_events_befre_sampling, y = fit)) +
-  # add CI across all dataset
-  geom_ribbon(aes(ymin = lower, ymax = upper), 
-              alpha = 0.1) +
-  geom_point(data=Data_1m2,
-             aes(n_mow_events_befre_sampling, SR, color=Month), 
-             pch=19, size=1.5, alpha=0.6, stroke = 0.8,
-             position = position_jitter(width = 0.08, height = 0)) +
-  geom_line(linewidth = 1) +
-  theme_bw() +
-  scale_color_manual(values = Month_col) +
-  scale_fill_manual(values = Month_col) +
-  labs(x = "Mowing events before sampling", 
-       y = "Species richness") 
+plot_SR_ProtcArea
 
 
-
-## MowFreq -------
+## Management ---------------------------------------------------------------------
 
 emmeans(m2_SR, list(pairwise ~ MowFreq))
 
@@ -774,7 +1005,7 @@ emmeans_m2_SR_MowFreq1 <- cld(emmeans(m2_SR, list(pairwise ~ MowFreq)),
 SR_max1 <-  Data_1m2 %>% 
   summarise(max=max(SR), .by = c(MowFreq))
 
-Data_1m2 %>% 
+plot_SR_Management <- Data_1m2 %>% 
   ggplot(aes(x = MowFreq, y = SR)) +
   theme_bw() +
   geom_point(aes(color=Month),
@@ -786,12 +1017,13 @@ Data_1m2 %>%
   # theme(legend.position = "none") +
   geom_text(data=emmeans_m2_SR_MowFreq1 %>% 
               left_join(SR_max1, by=c("MowFreq")),
-            aes(x=MowFreq, y=max+3,
-                label=.group),
+            aes(x=MowFreq, y=max+2, label= .group 
+            ),
             size=3.5, col="black") 
 
+plot_SR_Management
 
-## Month -------
+## Month ----------------------------------------------------------------------
 
 emmeans(m2_SR, list(pairwise ~ Month))
 
@@ -802,7 +1034,7 @@ emmeans_m2_SR_Month <- cld(emmeans(m2_SR, list(pairwise ~ Month)),
 SR_max2 <-  Data_1m2 %>% 
   summarise(max=max(SR), .by = c(Month))
 
-Data_1m2 %>% 
+plot_SR_Month <- Data_1m2 %>% 
   ggplot(aes(x = Month, y = SR)) +
   theme_bw() +
   geom_point(aes(color=Month),
@@ -814,22 +1046,28 @@ Data_1m2 %>%
   # theme(legend.position = "none") +
   geom_text(data=emmeans_m2_SR_Month %>% 
               left_join(SR_max2, by=c("Month")),
-            aes(x=Month, y=max+5,
+            aes(x=Month, y=max+2,
                 label=.group),
             size=3.5, col="black")
 
-## MowFreq * Month  -------
 
-emmeans(m2_SR, list(pairwise ~ MowFreq | Month))
+plot_SR_Month
 
-emmeans_m2_SR_MowFreq <- cld(emmeans(m2_SR, list(pairwise ~ MowFreq | Month)), 
+## MowFreq * Month  ------------------------------------------------------------
+
+# use model with interactionns
+
+emmeans(m1_SR, list(pairwise ~ MowFreq | Month))
+
+emmeans_m2_SR_MowFreq <- cld(emmeans(m1_SR, list(pairwise ~ MowFreq | Month)), 
                              Letters = letters) %>% 
-  arrange(MowFreq)
+  arrange(MowFreq) %>% 
+  as.tibble()
 
 SR_max <-  Data_1m2 %>% 
   summarise(max=max(SR), .by = c(MowFreq, Month))
 
-Data_1m2 %>% 
+plot_SR_Month_Manag_intr <- Data_1m2 %>% 
   ggplot(aes(x = MowFreq, y = SR)) +
   theme_bw() +
   geom_point(aes(color=Month),
@@ -841,10 +1079,42 @@ Data_1m2 %>%
   scale_color_manual(values = Month_col) +
   theme(legend.position = "none") +
   geom_text(data=emmeans_m2_SR_MowFreq %>% 
-              left_join(SR_max, by=c("MowFreq", "Month")),
-            aes(x=MowFreq, y=max+5,
+              left_join(SR_max, by=c("MowFreq", "Month"))%>% 
+              mutate(.group = case_when(
+                Month == "July" & MowFreq == "regular" ~ "a",
+                Month == "July" & MowFreq == "reduced" ~ "a",
+                Month == "July" & MowFreq == "reduced & sowing" ~ "b'",
+                TRUE ~ .group)),
+            aes(x=MowFreq, y=max+2,
                 label=.group),
             size=3.5, col="black") 
+
+plot_SR_Month_Manag_intr
+
+
+## COMBINE PLOTS ---------------------------------------------------------------
+
+library(patchwork)
+
+combined_SR <- 
+  plot_SR_Mow_ev + plot_SR_Litter +
+  plot_SR_BareSoil + plot_SR_Slope + 
+  plot_SR_TreeDist + plot_SR_Sky + 
+  plot_SR_Biotop + plot_SR_ProtcArea + 
+  # plot_SR_Management + plot_SR_Month +
+  plot_layout(ncol = 2, guides = "collect") +
+  plot_annotation(tag_levels = "A") &
+  theme(
+    plot.tag = element_text(face = 'bold', size = 15),
+    plot.tag.position = c(0.1, 1.05),
+    plot.margin = margin(t = 22, r = 10, b = 10, l = 10)
+  )
+
+print(combined_SR)
+
+
+ggsave("results/plots/SR.png", combined_SR, width = 7, height = 10, dpi = 450)
+
 
 
 
@@ -859,7 +1129,7 @@ Data_1m2 %>%
          n_mow_events_befre_sampling,
          Bare_Ground_Cover, Litter_Cover, slope_degr, dist_tree, 
          sky_view_factor, patch_size_m2, Biotop_richness_specific, 
-         green_cover_pct_log, road_density_km_per_ha, protected_cover_pct) %>% 
+         green_cover_pct_log, impervious_pct, protected_cover_pct) %>% 
   pivot_longer(-c(Month, evenness), 
                names_to = "variable", values_to = "value") %>%
   ggplot(aes(x = value, y = evenness)) +
@@ -869,7 +1139,7 @@ Data_1m2 %>%
   facet_wrap(~ variable, scales = "free_x") +
   theme_bw() +
   scale_color_manual(values = Month_col) +
-  labs(x = NULL, y = "Biomass")
+  labs(x = NULL, y = "Evenness")
 
 
 ## Models: ----------------------------
@@ -880,13 +1150,15 @@ m1_evenness <- lmerTest::lmer(evenness ~
                                 MowFreq*Month +  
                                 scale(n_mow_events_befre_sampling) +
                                 scale(Litter_Cover) + 
-                                scale(road_density_km_per_ha) + 
-                                scale(patch_size_m2) +
+                                #      scale(road_density_km_per_ha) + 
+                                #      scale(patch_size_m2) +
                                 Bare_Ground_Cover + 
                                 scale(slope_degr) + scale(dist_tree) + 
                                 scale(sky_view_factor) +
                                 scale(Biotop_richness_specific) + 
-                                scale(green_cover_pct) + 
+                                scale(protected_cover_pct) + 
+                                #  scale(green_cover_pct) + 
+                                scale(impervious_pct) +
                                 (1|PlotNo),
                               data = Data_1m2)
 
@@ -899,46 +1171,28 @@ check_collinearity(m1_evenness)
 drop1(m1_evenness)
 
 # remove interaction 
-# remove patch_size_m2
 
-m2_evenness_a <- lmerTest::lmer(evenness ~ 
-                                  MowFreq+Month +  
+m2_evenness <- lmerTest::lmer(evenness ~ 
+                                  MowFreq + Month +  
                                   scale(n_mow_events_befre_sampling) +
                                   scale(Litter_Cover) + 
-                                  scale(road_density_km_per_ha) + 
-                                  # scale(patch_size_m2) +
+                                  #      scale(road_density_km_per_ha) + 
+                                  #      scale(patch_size_m2) +
                                   Bare_Ground_Cover + 
                                   scale(slope_degr) + scale(dist_tree) + 
                                   scale(sky_view_factor) +
                                   scale(Biotop_richness_specific) + 
-                                  log1p(green_cover_pct) + 
+                                protected_cover_pct +  # scale(impervious_pct) +
+                                #   scale(green_cover_pct) + 
                                   (1|PlotNo),
                                 data = Data_1m2)
-
-# keep patch_size_m2
-m2_evenness <- lmerTest::lmer(evenness ~ 
-                                MowFreq+Month +  
-                                scale(n_mow_events_befre_sampling) +
-                                scale(Litter_Cover) + 
-                                scale(road_density_km_per_ha) + 
-                                scale(patch_size_m2) +
-                                Bare_Ground_Cover + 
-                                scale(slope_degr) + scale(dist_tree) + 
-                                scale(sky_view_factor) +
-                                scale(Biotop_richness_specific) + 
-                                log1p(green_cover_pct) + 
-                                (1|PlotNo),
-                              data = Data_1m2)
-
 
 
 summary(m2_evenness)
 # check model assumptions
 check_convergence(m2_evenness)
 check_model(m2_evenness)
-
-anova(m2_evenness_a, m2_evenness)
-# m2_evenness # with patch_size_m2
+check_collinearity(m2_evenness)
 
 # check predictor effects
 drop1(m2_evenness)
@@ -962,68 +1216,27 @@ Mod_results_evenness <- drop1(m2_evenness) %>% as.data.frame() %>%
 
 Mod_results_evenness %>% 
   write_csv("results/LMM_evenness.csv")
+
+
+
 ## Plots ------------------------------------------------------------------------
 
 library(effects)
 plot(allEffects(m2_evenness))
 
 
-##  road_density_km_per_ha  ---------
-Data_1m2$evenness %>% 
-  summary()
+##  Mowing events before sampling  ---------
 
-# m2_evenness_Road_pred <- ggpredict(m2_evenness, terms = c("road_density_km_per_ha")) %>% as.data.frame()
-# Very large CI
-# "ggeffects" includes both fixed and random effect uncertainty
-# "effects" Includes only fixed effect uncertainty
-library(effects)
-m2_evenness_Road_pred <- Effect("road_density_km_per_ha", m2_evenness) %>% 
+mow_events_range = seq(min(Data_1m2$n_mow_events_befre_sampling),
+                       max(Data_1m2$n_mow_events_befre_sampling), 
+                       by = 0.001)
+
+m2_evenness_Mow_pred <- Effect("n_mow_events_befre_sampling", m2_evenness,
+                               xlevels = list(n_mow_events_befre_sampling = mow_events_range)) %>% 
   as.data.frame()
 
-ggplot(m2_evenness_Road_pred, aes(x = road_density_km_per_ha, y = fit)) +
-  # add CI across all dataset
-  geom_ribbon(aes(ymin = lower, ymax = upper), 
-              alpha = 0.1) +
-  geom_point(data=Data_1m2,
-             aes(road_density_km_per_ha, evenness, color=Month), 
-             pch=19, size=1.5, alpha=0.6, stroke = 0.8,
-             position = position_jitter(width = 0, height = 0)) +
-  geom_line(linewidth = 1) +
-  theme_bw() +
-  scale_color_manual(values = Month_col) +
-  scale_fill_manual(values = Month_col) +
-  labs(x = "Road density (km/ha)", 
-       y = "Hill-Simpson diversity") 
-
-##  patch_size_m2  ---------
-Data_1m2$patch_size_m2 %>% 
-  summary()
-
-# m2_evenness_Litter_pred <- ggpredict(m2_evenness, terms = c("patch_size_m2[2.00:65.00, by=0.01]")) %>% as.data.frame()
-m2_evenness_Litter_pred <- Effect("patch_size_m2", m2_evenness) %>% 
-  as.data.frame()
-
-ggplot(m2_evenness_Litter_pred, aes(patch_size_m2, y = fit)) +
-  # add CI across all dataset
-  geom_ribbon(aes(ymin = lower, ymax = upper), 
-              alpha = 0.1) +
-  geom_point(data=Data_1m2,
-             aes(patch_size_m2, evenness, color=Month), 
-             pch=19, size=1.5, alpha=0.6, stroke = 0.8,
-             position = position_jitter(width = 0, height = 0)) +
-  geom_line(linewidth = 1) +
-  theme_bw() +
-  scale_color_manual(values = Month_col) +
-  scale_fill_manual(values = Month_col) +
-  labs(x = expression("Patch size, m"^2),
-       y = "Hill-Simpson diversity") 
-
-##  mowing events before sampling  ---------
-
-m2_evenness_Mow_pred <- Effect("n_mow_events_befre_sampling", m2_evenness) %>% 
-  as.data.frame()
-
-ggplot(m2_evenness_Mow_pred, aes(x = n_mow_events_befre_sampling, y = fit)) +
+plot_evenness_Mow_ev <- ggplot(m2_evenness_Mow_pred, 
+                               aes(x = n_mow_events_befre_sampling, y = fit)) +
   # add CI across all dataset
   geom_ribbon(aes(ymin = lower, ymax = upper), 
               alpha = 0.1) +
@@ -1031,45 +1244,86 @@ ggplot(m2_evenness_Mow_pred, aes(x = n_mow_events_befre_sampling, y = fit)) +
              aes(n_mow_events_befre_sampling, evenness, color=Month), 
              pch=19, size=1.5, alpha=0.6, stroke = 0.8,
              position = position_jitter(width = 0.08, height = 0)) +
-  geom_line(linewidth = 1) +
+  geom_line(linewidth = 0.8, linetype="dashed") +
   theme_bw() +
   scale_color_manual(values = Month_col) +
   scale_fill_manual(values = Month_col) +
   labs(x = "Mowing events before sampling", 
        y = "Hill-Simpson diversity") 
 
-##  Biotop_richness_specific  ---------
-Data_1m2$Biotop_richness_specific %>% 
-  summary()
+plot_evenness_Mow_ev
 
-# m2_evenness_Litter_pred <- ggpredict(m2_evenness, terms = c("Biotop_richness_specific")) %>% as.data.frame()
-m2_evenness_Biotop_pred <- Effect("Biotop_richness_specific", m2_evenness) %>% 
+##  Litter_Cover  ---------
+
+Litter_range = seq(min(Data_1m2$Litter_Cover),
+                   max(Data_1m2$Litter_Cover), 
+                   by = 0.01)
+
+m2_evenness_Litter_pred <- Effect("Litter_Cover", 
+                                  m2_evenness,
+                                  xlevels = list(Litter_Cover = Litter_range)) %>% 
   as.data.frame()
 
-ggplot(m2_evenness_Biotop_pred, aes(Biotop_richness_specific, y = fit)) +
+plot_evenness_Litter <- ggplot(m2_evenness_Litter_pred, aes(Litter_Cover, y = fit)) +
   # add CI across all dataset
   geom_ribbon(aes(ymin = lower, ymax = upper), 
               alpha = 0.1) +
   geom_point(data=Data_1m2,
-             aes(Biotop_richness_specific, evenness, color=Month), 
+             aes(Litter_Cover, evenness, color=Month), 
              pch=19, size=1.5, alpha=0.6, stroke = 0.8,
              position = position_jitter(width = 0, height = 0)) +
-  geom_line(linewidth = 1) +
+  geom_line(linewidth = 0.8, linetype="dashed") +
   theme_bw() +
   scale_color_manual(values = Month_col) +
   scale_fill_manual(values = Month_col) +
-  labs(x = "Landscape heterogeneity", 
+  labs(x = "Litter cover, %", 
        y = "Hill-Simpson diversity") 
 
+plot_evenness_Litter
 
-##  slope_degr  ---------
-Data_1m2$slope_degr %>% 
-  summary()
+##  Bare_Ground_Cover  ---------
 
-m2_evenness_Patch_pred <- Effect("slope_degr", m2_evenness) %>% 
+BareSoil_range = seq(min(Data_1m2$Bare_Ground_Cover),
+                     max(Data_1m2$Bare_Ground_Cover), 
+                     by = 0.001)
+
+m2_evenness_BareSoil_pred <- Effect("Bare_Ground_Cover", 
+                                    m2_evenness,
+                                    xlevels = list(Bare_Ground_Cover = BareSoil_range)) %>% 
   as.data.frame() 
 
-ggplot(m2_evenness_Patch_pred, aes(x = slope_degr, y = fit)) +
+plot_evenness_BareSoil <- ggplot(m2_evenness_BareSoil_pred, 
+                                 aes(x = Bare_Ground_Cover, y = fit)) +
+  # add CI across all dataset
+  geom_ribbon(aes(ymin = lower, ymax = upper), 
+              alpha = 0.1) +
+  geom_point(data=Data_1m2,
+             aes(Bare_Ground_Cover, evenness, color=Month), 
+             pch=19, size=1.5, alpha=0.6, stroke = 0.8,
+             position = position_jitter(width = 0, height = 0)) +
+  geom_line(linewidth = 0.8, linetype="dashed") +
+  theme_bw() +
+  scale_color_manual(values = Month_col) +
+  scale_fill_manual(values = Month_col) +
+  labs(x = "Bare ground cover (%)",
+       y = "Hill-Simpson diversity") 
+
+plot_evenness_BareSoil
+
+
+##  Slope effect   -------------------------------------------------------------
+
+Slope_range = seq(min(Data_1m2$slope_degr),
+                  max(Data_1m2$slope_degr), 
+                  by = 0.001)
+
+m2_evenness_slope_pred <- Effect("slope_degr", 
+                                 m2_evenness,
+                                 xlevels = list(slope_degr = Slope_range)) %>% 
+  as.data.frame() 
+
+
+plot_evenness_Slope <-ggplot(m2_evenness_slope_pred, aes(slope_degr, y = fit)) +
   # add CI across all dataset
   geom_ribbon(aes(ymin = lower, ymax = upper), 
               alpha = 0.1) +
@@ -1081,19 +1335,58 @@ ggplot(m2_evenness_Patch_pred, aes(x = slope_degr, y = fit)) +
   theme_bw() +
   scale_color_manual(values = Month_col) +
   scale_fill_manual(values = Month_col) +
-  labs(x = "Slope",
+  labs(x = "Slope", 
        y = "Hill-Simpson diversity") 
 
 
+plot_evenness_Slope
 
-##  sky_view_factor  ---------
-Data_1m2$sky_view_factor %>% 
-  summary()
 
-m2_evenness_green_pred <- Effect("sky_view_factor", m2_evenness) %>% 
+
+## Ttree distance  ----------------------------------------------------------------
+Tree_dist_range = seq(min(Data_1m2$dist_tree),
+                      max(Data_1m2$dist_tree), 
+                      by = 0.001)
+
+m2_evenness_TreeDist_pred <- Effect("dist_tree", 
+                                    m2_evenness,
+                                    xlevels = list(dist_tree = Tree_dist_range)) %>% 
   as.data.frame() 
 
-ggplot(m2_evenness_green_pred, aes(x = sky_view_factor, y = fit)) +
+
+plot_evenness_TreeDist <-
+  ggplot(m2_evenness_TreeDist_pred, aes(x = dist_tree, y = fit)) +
+  # add CI across all dataset
+  geom_ribbon(aes(ymin = lower, ymax = upper), 
+              alpha = 0.1) +
+  geom_point(data=Data_1m2,
+             aes(dist_tree, evenness, color=Month), 
+             pch=19, size=1.5, alpha=0.6, stroke = 0.8,
+             position = position_jitter(width = 0, height = 0)) +
+  geom_line(linewidth = 0.8, linetype="dashed") +
+  theme_bw() +
+  scale_color_manual(values = Month_col) +
+  scale_fill_manual(values = Month_col) +
+  labs(x = "Tree distance (m)",
+       y = "Hill-Simpson diversity") 
+
+plot_evenness_TreeDist
+
+
+##  Sky view   -----------------------------------------------------------
+
+Sky_range = seq(min(Data_1m2$sky_view_factor),
+                max(Data_1m2$sky_view_factor), 
+                by = 0.001)
+
+m2_evenness_Sky_pred <- Effect("sky_view_factor", 
+                               m2_evenness,
+                               xlevels = list(sky_view_factor = Sky_range)) %>% 
+  as.data.frame() 
+
+
+plot_evenness_Sky <- ggplot(m2_evenness_Sky_pred, 
+                            aes(x = sky_view_factor, y = fit)) +
   # add CI across all dataset
   geom_ribbon(aes(ymin = lower, ymax = upper), 
               alpha = 0.1) +
@@ -1101,14 +1394,81 @@ ggplot(m2_evenness_green_pred, aes(x = sky_view_factor, y = fit)) +
              aes(sky_view_factor, evenness, color=Month), 
              pch=19, size=1.5, alpha=0.6, stroke = 0.8,
              position = position_jitter(width = 0, height = 0)) +
-  geom_line(linewidth = 1) +
+  geom_line(linewidth = 0.8, linetype="dashed") +
   theme_bw() +
   scale_color_manual(values = Month_col) +
   scale_fill_manual(values = Month_col) +
   labs(x = "Sky-view factor",
        y = "Hill-Simpson diversity") 
 
-## MowFreq -------
+
+plot_evenness_Sky
+
+##  Biotop_richness_specific  --------------------------------------------------
+
+
+Biotop_range = seq(min(Data_1m2$Biotop_richness_specific),
+                   max(Data_1m2$Biotop_richness_specific), 
+                   by = 0.001)
+
+m2_evenness_Biotop_pred <- Effect("Biotop_richness_specific", 
+                                  m2_evenness,
+                                  xlevels = list(Biotop_richness_specific = Biotop_range)) %>% 
+  as.data.frame()
+
+plot_evenness_Biotop <- ggplot(m2_evenness_Biotop_pred, 
+                               aes(Biotop_richness_specific, y = fit)) +
+  # add CI across all dataset
+  geom_ribbon(aes(ymin = lower, ymax = upper), 
+              alpha = 0.1) +
+  geom_point(data=Data_1m2,
+             aes(Biotop_richness_specific, evenness, color=Month), 
+             pch=19, size=1.5, alpha=0.6, stroke = 0.8,
+             position = position_jitter(width = 0, height = 0)) +
+  geom_line(linewidth = 0.8, linetype="dashed") +
+  theme_bw() +
+  scale_color_manual(values = Month_col) +
+  scale_fill_manual(values = Month_col) +
+  labs(x = "Landscape heterogeneity", 
+       y = "Hill-Simpson diversity") 
+
+plot_evenness_Biotop
+
+
+##  Protected areas  ----------------------------------------------------------
+
+
+ProtecArea_range = seq(min(Data_1m2$protected_cover_pct),
+                       max(Data_1m2$protected_cover_pct), 
+                       by = 0.001)
+
+m2_evenness_Protect_pred <- Effect("protected_cover_pct", 
+                                   m2_evenness,
+                                   xlevels = list(protected_cover_pct = ProtecArea_range))%>% 
+  as.data.frame() 
+
+
+
+plot_evenness_ProtcArea <- ggplot(m2_evenness_Protect_pred, 
+                                  aes(x = protected_cover_pct, y = fit)) +
+  # add CI across all dataset
+  geom_ribbon(aes(ymin = lower, ymax = upper), 
+              alpha = 0.1) +
+  geom_point(data=Data_1m2,
+             aes(protected_cover_pct, evenness, color=Month), 
+             pch=19, size=1.5, alpha=0.6, stroke = 0.8,
+             position = position_jitter(width = 0, height = 0)) +
+  geom_line(linewidth = 0.8, linetype="dashed") +
+  theme_bw() +
+  scale_color_manual(values = Month_col) +
+  scale_fill_manual(values = Month_col) +
+  labs(x = "Protected areas (%)",
+       y = "Hill-Simpson diversity") 
+
+plot_evenness_ProtcArea
+
+
+## Management ---------------------------------------------------------------------
 
 emmeans(m2_evenness, list(pairwise ~ MowFreq))
 
@@ -1119,7 +1479,7 @@ emmeans_m2_evenness_MowFreq1 <- cld(emmeans(m2_evenness, list(pairwise ~ MowFreq
 evenness_max1 <-  Data_1m2 %>% 
   summarise(max=max(evenness), .by = c(MowFreq))
 
-Data_1m2 %>% 
+plot_evenness_Management <- Data_1m2 %>% 
   ggplot(aes(x = MowFreq, y = evenness)) +
   theme_bw() +
   geom_point(aes(color=Month),
@@ -1131,12 +1491,13 @@ Data_1m2 %>%
   # theme(legend.position = "none") +
   geom_text(data=emmeans_m2_evenness_MowFreq1 %>% 
               left_join(evenness_max1, by=c("MowFreq")),
-            aes(x=MowFreq, y=max+3,
-                label=.group),
+            aes(x=MowFreq, y=max+2, label= .group 
+            ),
             size=3.5, col="black") 
 
+plot_evenness_Management
 
-## Month -------
+## Month ----------------------------------------------------------------------
 
 emmeans(m2_evenness, list(pairwise ~ Month))
 
@@ -1147,7 +1508,7 @@ emmeans_m2_evenness_Month <- cld(emmeans(m2_evenness, list(pairwise ~ Month)),
 evenness_max2 <-  Data_1m2 %>% 
   summarise(max=max(evenness), .by = c(Month))
 
-Data_1m2 %>% 
+plot_evenness_Month <- Data_1m2 %>% 
   ggplot(aes(x = Month, y = evenness)) +
   theme_bw() +
   geom_point(aes(color=Month),
@@ -1159,22 +1520,28 @@ Data_1m2 %>%
   # theme(legend.position = "none") +
   geom_text(data=emmeans_m2_evenness_Month %>% 
               left_join(evenness_max2, by=c("Month")),
-            aes(x=Month, y=max+5,
+            aes(x=Month, y=max+2,
                 label=.group),
             size=3.5, col="black")
 
-## MowFreq * Month  -------
 
-emmeans(m2_evenness, list(pairwise ~ MowFreq | Month))
+plot_evenness_Month
 
-emmeans_m2_evenness_MowFreq <- cld(emmeans(m2_evenness, list(pairwise ~ MowFreq | Month)), 
+## MowFreq * Month  ------------------------------------------------------------
+
+# use model with interactionns
+
+emmeans(m1_evenness, list(pairwise ~ MowFreq | Month))
+
+emmeans_m2_evenness_MowFreq <- cld(emmeans(m1_evenness, list(pairwise ~ MowFreq | Month)), 
                                    Letters = letters) %>% 
-  arrange(MowFreq)
+  arrange(MowFreq) %>% 
+  as.tibble()
 
 evenness_max <-  Data_1m2 %>% 
   summarise(max=max(evenness), .by = c(MowFreq, Month))
 
-Data_1m2 %>% 
+plot_evenness_Month_Manag_intr <- Data_1m2 %>% 
   ggplot(aes(x = MowFreq, y = evenness)) +
   theme_bw() +
   geom_point(aes(color=Month),
@@ -1187,11 +1554,38 @@ Data_1m2 %>%
   theme(legend.position = "none") +
   geom_text(data=emmeans_m2_evenness_MowFreq %>% 
               left_join(evenness_max, by=c("MowFreq", "Month")),
-            aes(x=MowFreq, y=max+5,
+            aes(x=MowFreq, y=max+2,
                 label=.group),
             size=3.5, col="black") 
 
-# 3) Phenological DIversity -----------------------------------------------------------------------
+plot_evenness_Month_Manag_intr
+
+
+## COMBINE PLOTS ---------------------------------------------------------------
+
+library(patchwork)
+
+combined_evenness <- 
+  plot_evenness_Mow_ev + plot_evenness_Litter +
+  plot_evenness_BareSoil + plot_evenness_Slope + 
+  plot_evenness_TreeDist + plot_evenness_Sky + 
+  plot_evenness_Biotop + plot_evenness_ProtcArea + 
+  # plot_evenness_Management + plot_evenness_Month +
+  plot_layout(ncol = 2, guides = "collect") +
+  plot_annotation(tag_levels = "A") &
+  theme(
+    plot.tag = element_text(face = 'bold', size = 15),
+    plot.tag.position = c(0.1, 1.05),
+    plot.margin = margin(t = 22, r = 10, b = 10, l = 10)
+  )
+
+print(combined_SR)
+
+
+ggsave("results/plots/evenness.png", combined_evenness, width = 7, height = 10, dpi = 450)
+
+
+# 3) Phenological Diversity -----------------------------------------------------------------------
 
 
 # 3.1) Phenological richness -----------------------------------------------------------------------
@@ -1213,7 +1607,7 @@ Data_1m2 %>%
   facet_wrap(~ variable, scales = "free_x") +
   theme_bw() +
   scale_color_manual(values = Month_col) +
-  labs(x = NULL, y = "Biomass")
+  labs(x = NULL, y = "phen_Richness")
 
 
 ## Models: ----------------------------
@@ -1224,13 +1618,16 @@ m1_phen_Richness <- lmerTest::lmer(phen_Richness ~
                                      MowFreq*Month +  
                                      scale(n_mow_events_befre_sampling) +
                                      scale(Litter_Cover) + 
-                                     scale(road_density_km_per_ha) + 
-                                     scale(patch_size_m2) +
+                                     #      scale(road_density_km_per_ha) + 
+                                     #      scale(patch_size_m2) +
                                      Bare_Ground_Cover + 
-                                     scale(slope_degr) + scale(dist_tree) + 
+                                     scale(log1p(slope_degr)) + 
+                                     scale(dist_tree) + 
                                      scale(sky_view_factor) +
                                      scale(Biotop_richness_specific) + 
-                                     scale(green_cover_pct) + 
+                                     scale(protected_cover_pct) + 
+                                    # scale(impervious_pct) +
+                                     #   scale(green_cover_pct) + 
                                      (1|PlotNo),
                                    data = Data_1m2)
 
@@ -1242,47 +1639,22 @@ check_collinearity(m1_phen_Richness)
 # check interactions
 drop1(m1_phen_Richness)
 
-# remove patch_size_m2
-
-m2_phen_Richness <- lmerTest::lmer(phen_Richness ~ 
-                                     MowFreq*Month +  
-                                     scale(n_mow_events_befre_sampling) +
-                                     scale(Litter_Cover) + 
-                                     scale(road_density_km_per_ha) + 
-                                     # scale(patch_size_m2) +
-                                     Bare_Ground_Cover + 
-                                     scale(slope_degr) + scale(dist_tree) + 
-                                     scale(sky_view_factor) +
-                                     scale(Biotop_richness_specific) + 
-                                     log1p(green_cover_pct) + 
-                                     (1|PlotNo),
-                                   data = Data_1m2)
-
-
-summary(m2_phen_Richness)
-# check model assumptions
-check_convergence(m2_phen_Richness)
-check_model(m2_phen_Richness)
-
-anova(m1_phen_Richness, m2_phen_Richness)
-# m2_phen_Richness # with patch_size_m2
-
 # check predictor effects
-drop1(m2_phen_Richness)
-# Anova(m1_phen_Richness, type = "II")
+drop1(m1_phen_Richness)
+# Anova(m1_phen_Richness, type = "III", test.statistic = "F")
 
 ## R2 ---------------------------------------------------------------
 # R2 for the entire model
-MuMIn::r.squaredGLMM(m2_phen_Richness)
+MuMIn::r.squaredGLMM(m1_phen_Richness)
 # Partial R2 for fixed effects
-r2glmm::r2beta(m2_phen_Richness,  partial = T)
+r2glmm::r2beta(m1_phen_Richness,  partial = T)
 
-Mod_results_Phen_Richness <- drop1(m2_phen_Richness) %>% as.data.frame() %>% 
+Mod_results_Phen_Richness <- drop1(m1_phen_Richness) %>% as.data.frame() %>% 
   rownames_to_column("Driver") %>% select(-"Sum Sq", -"Mean Sq") %>% 
   # relocate raw "MowFreq:Month" in column "Driver" to the top
   arrange(Driver != "MowFreq:Month") %>% 
   left_join(
-    r2glmm::r2beta(m2_phen_Richness,  partial = T) %>% as.data.frame() %>% 
+    r2glmm::r2beta(m1_phen_Richness,  partial = T) %>% as.data.frame() %>% 
       rename(Driver="Effect") %>% 
       select(Driver,  Rsq), by = "Driver") %>% 
   mutate(Responce = "phen_Richness",.before= Driver)
@@ -1292,14 +1664,20 @@ Mod_results_Phen_Richness %>%
 ## Plots ------------------------------------------------------------------------
 
 library(effects)
-plot(allEffects(m2_phen_Richness))
+plot(allEffects(m1_phen_Richness))
 
-##  mowing events before sampling  ---------
+##  Mowing events before sampling  ---------
 
-m2_phen_Richness_Mow_pred <- Effect("n_mow_events_befre_sampling", m2_phen_Richness) %>% 
+mow_events_range = seq(min(Data_1m2$n_mow_events_befre_sampling),
+                       max(Data_1m2$n_mow_events_befre_sampling), 
+                       by = 0.001)
+
+m1_phen_Richness_Mow_pred <- Effect("n_mow_events_befre_sampling", m1_phen_Richness,
+                                    xlevels = list(n_mow_events_befre_sampling = mow_events_range)) %>% 
   as.data.frame()
 
-ggplot(m2_phen_Richness_Mow_pred, aes(x = n_mow_events_befre_sampling, y = fit)) +
+plot_PhenRichness_Mow_ev <- ggplot(m1_phen_Richness_Mow_pred, 
+                                   aes(x = n_mow_events_befre_sampling, y = fit)) +
   # add CI across all dataset
   geom_ribbon(aes(ymin = lower, ymax = upper), 
               alpha = 0.1) +
@@ -1314,75 +1692,301 @@ ggplot(m2_phen_Richness_Mow_pred, aes(x = n_mow_events_befre_sampling, y = fit))
   labs(x = "Mowing events before sampling", 
        y = "Phenological richness") 
 
-## MowFreq -------
+plot_PhenRichness_Mow_ev
 
-emmeans(m2_phen_Richness, list(pairwise ~ MowFreq))
+##  Litter_Cover  ---------
 
-emmeans_m2_phen_Richness_MowFreq1 <- cld(emmeans(m2_phen_Richness, list(pairwise ~ MowFreq)), 
+Litter_range = seq(min(Data_1m2$Litter_Cover),
+                   max(Data_1m2$Litter_Cover), 
+                   by = 0.01)
+
+m1_phen_Richness_Litter_pred <- Effect("Litter_Cover", 
+                                       m1_phen_Richness,
+                                       xlevels = list(Litter_Cover = Litter_range)) %>% 
+  as.data.frame()
+
+plot_PhenRichness_Litter <- ggplot(m1_phen_Richness_Litter_pred, aes(Litter_Cover, y = fit)) +
+  # add CI across all dataset
+  geom_ribbon(aes(ymin = lower, ymax = upper), 
+              alpha = 0.1) +
+  geom_point(data=Data_1m2,
+             aes(Litter_Cover, phen_Richness, color=Month), 
+             pch=19, size=1.5, alpha=0.6, stroke = 0.8,
+             position = position_jitter(width = 0, height = 0.15))  +
+  geom_line(linewidth = 0.8, linetype="dashed") +
+  theme_bw() +
+  scale_color_manual(values = Month_col) +
+  scale_fill_manual(values = Month_col) +
+  labs(x = "Litter cover, %", 
+       y = "Phenological richness") 
+
+plot_PhenRichness_Litter
+
+##  Bare_Ground_Cover  ---------
+
+BareSoil_range = seq(min(Data_1m2$Bare_Ground_Cover),
+                     max(Data_1m2$Bare_Ground_Cover), 
+                     by = 0.001)
+
+m1_phen_Richness_BareSoil_pred <- Effect("Bare_Ground_Cover", 
+                                         m1_phen_Richness,
+                                         xlevels = list(Bare_Ground_Cover = BareSoil_range)) %>% 
+  as.data.frame() 
+
+plot_PhenRichness_BareSoil <- ggplot(m1_phen_Richness_BareSoil_pred, 
+                                     aes(x = Bare_Ground_Cover, y = fit)) +
+  # add CI across all dataset
+  geom_ribbon(aes(ymin = lower, ymax = upper), 
+              alpha = 0.1) +
+  geom_point(data=Data_1m2,
+             aes(Bare_Ground_Cover, phen_Richness, color=Month), 
+             pch=19, size=1.5, alpha=0.6, stroke = 0.8,
+             position = position_jitter(width = 0, height = 0.15)) +
+  geom_line(linewidth = 0.8, linetype="dashed") +
+  theme_bw() +
+  scale_color_manual(values = Month_col) +
+  scale_fill_manual(values = Month_col) +
+  labs(x = "Bare ground cover (%)",
+       y = "Phenological richness") 
+
+plot_PhenRichness_BareSoil
+
+
+##  Slope effect   -------------------------------------------------------------
+
+Slope_range = seq(min(Data_1m2$slope_degr),
+                  max(Data_1m2$slope_degr), 
+                  by = 0.001)
+
+m1_phen_Richness_slope_pred <- Effect("slope_degr", 
+                                      m1_phen_Richness,
+                                      xlevels = list(slope_degr = Slope_range)) %>% 
+  as.data.frame() 
+
+
+plot_PhenRichness_Slope <-ggplot(m1_phen_Richness_slope_pred, aes(slope_degr, y = fit)) +
+  # add CI across all dataset
+  geom_ribbon(aes(ymin = lower, ymax = upper), 
+              alpha = 0.1) +
+  geom_point(data=Data_1m2,
+             aes(slope_degr, phen_Richness, color=Month), 
+             pch=19, size=1.5, alpha=0.6, stroke = 0.8,
+             position = position_jitter(width = 0.04, height = 0.15)) +
+  geom_line(linewidth = 0.8, linetype="dashed") +
+  theme_bw() +
+  scale_color_manual(values = Month_col) +
+  scale_fill_manual(values = Month_col) +
+  labs(x = "Slope", 
+       y = "Phenological richness") 
+
+
+plot_PhenRichness_Slope
+
+
+
+## Ttree distance  ----------------------------------------------------------------
+Tree_dist_range = seq(min(Data_1m2$dist_tree),
+                      max(Data_1m2$dist_tree), 
+                      by = 0.001)
+
+m1_phen_Richness_TreeDist_pred <- Effect("dist_tree", 
+                                         m1_phen_Richness,
+                                         xlevels = list(dist_tree = Tree_dist_range)) %>% 
+  as.data.frame() 
+
+
+plot_PhenRichness_TreeDist <-
+  ggplot(m1_phen_Richness_TreeDist_pred, aes(x = dist_tree, y = fit)) +
+  # add CI across all dataset
+  geom_ribbon(aes(ymin = lower, ymax = upper), 
+              alpha = 0.1) +
+  geom_point(data=Data_1m2,
+             aes(dist_tree, phen_Richness, color=Month), 
+             pch=19, size=1.5, alpha=0.6, stroke = 0.8,
+             position = position_jitter(width = 0, height = 0.15)) +
+  geom_line(linewidth = 0.8, linetype="dashed") +
+  theme_bw() +
+  scale_color_manual(values = Month_col) +
+  scale_fill_manual(values = Month_col) +
+  labs(x = "Tree distance (m)",
+       y = "Phenological richness") 
+
+plot_PhenRichness_TreeDist
+
+
+##  Sky view   -----------------------------------------------------------
+
+Sky_range = seq(min(Data_1m2$sky_view_factor),
+                max(Data_1m2$sky_view_factor), 
+                by = 0.001)
+
+m1_phen_Richness_Sky_pred <- Effect("sky_view_factor", 
+                                    m1_phen_Richness,
+                                    xlevels = list(sky_view_factor = Sky_range)) %>% 
+  as.data.frame() 
+
+
+plot_PhenRichness_Sky <- ggplot(m1_phen_Richness_Sky_pred, 
+                                aes(x = sky_view_factor, y = fit)) +
+  # add CI across all dataset
+  geom_ribbon(aes(ymin = lower, ymax = upper), 
+              alpha = 0.1) +
+  geom_point(data=Data_1m2,
+             aes(sky_view_factor, phen_Richness, color=Month), 
+             pch=19, size=1.5, alpha=0.6, stroke = 0.8,
+             position = position_jitter(width = 0.04, height = 0.15)) +
+  geom_line(linewidth = 0.8, linetype="dashed") +
+  theme_bw() +
+  scale_color_manual(values = Month_col) +
+  scale_fill_manual(values = Month_col) +
+  labs(x = "Sky-view factor",
+       y = "Phenological richness") 
+
+
+plot_PhenRichness_Sky
+
+##  Biotop_richness_specific  --------------------------------------------------
+
+
+Biotop_range = seq(min(Data_1m2$Biotop_richness_specific),
+                   max(Data_1m2$Biotop_richness_specific), 
+                   by = 0.001)
+
+m1_phen_Richness_Biotop_pred <- Effect("Biotop_richness_specific", 
+                                       m1_phen_Richness,
+                                       xlevels = list(Biotop_richness_specific = Biotop_range)) %>% 
+  as.data.frame()
+
+plot_PhenRichness_Biotop <- ggplot(m1_phen_Richness_Biotop_pred, 
+                                   aes(Biotop_richness_specific, y = fit)) +
+  # add CI across all dataset
+  geom_ribbon(aes(ymin = lower, ymax = upper), 
+              alpha = 0.1) +
+  geom_point(data=Data_1m2,
+             aes(Biotop_richness_specific, phen_Richness, color=Month), 
+             pch=19, size=1.5, alpha=0.6, stroke = 0.8,
+             position = position_jitter(width = 0.04, height = 0.15)) +
+  geom_line(linewidth = 0.8, linetype="dashed") +
+  theme_bw() +
+  scale_color_manual(values = Month_col) +
+  scale_fill_manual(values = Month_col) +
+  labs(x = "Landscape heterogeneity", 
+       y = "Phenological richness") 
+
+plot_PhenRichness_Biotop
+
+
+##  Protected areas  ----------------------------------------------------------
+
+
+ProtecArea_range = seq(min(Data_1m2$protected_cover_pct),
+                       max(Data_1m2$protected_cover_pct), 
+                       by = 0.001)
+
+m1_phen_Richness_Protect_pred <- Effect("protected_cover_pct", 
+                                        m1_phen_Richness,
+                                        xlevels = list(protected_cover_pct = ProtecArea_range))%>% 
+  as.data.frame() 
+
+
+
+plot_PhenRichness_ProtcArea <- ggplot(m1_phen_Richness_Protect_pred, 
+                                      aes(x = protected_cover_pct, y = fit)) +
+  # add CI across all dataset
+  geom_ribbon(aes(ymin = lower, ymax = upper), 
+              alpha = 0.1) +
+  geom_point(data=Data_1m2,
+             aes(protected_cover_pct, phen_Richness, color=Month), 
+             pch=19, size=1.5, alpha=0.6, stroke = 0.8,
+             position = position_jitter(width = 0.04, height = 0.15)) +
+  geom_line(linewidth = 0.8, linetype="dashed") +
+  theme_bw() +
+  scale_color_manual(values = Month_col) +
+  scale_fill_manual(values = Month_col) +
+  labs(x = "Protected areas (%)",
+       y = "Phenological richness") 
+
+plot_PhenRichness_ProtcArea
+
+
+## Management ---------------------------------------------------------------------
+
+m1_phen_Richness_no_int <- update(m1_phen_Richness, . ~ . - MowFreq:Month) # we remove interaction for lotting main effcets
+drop1(m1_phen_Richness_no_int)
+
+emmeans(m1_phen_Richness_no_int, list(pairwise ~ MowFreq))
+
+emmeans_m1_phen_Richness_MowFreq1 <- cld(emmeans(m1_phen_Richness_no_int, list(pairwise ~ MowFreq)), 
                                          Letters = letters) %>% 
   arrange(MowFreq)
 
 phen_Richness_max1 <-  Data_1m2 %>% 
   summarise(max=max(phen_Richness), .by = c(MowFreq))
 
-Data_1m2 %>% 
+plot_PhenRichness_Management <- Data_1m2 %>% 
   ggplot(aes(x = MowFreq, y = phen_Richness)) +
   theme_bw() +
   geom_point(aes(color=Month),
              pch=19, size=1.5, alpha=0.6, stroke = 0.8,
-             position = position_jitter(width = 0.25, height = 0)) +
+             position = position_jitter(width = 0.25, height = 0.1)) +
   geom_boxplot(outliers = F, alpha=0) +
   labs(x = "Management", y = "Phenological richness") +
   scale_color_manual(values = Month_col) +
   # theme(legend.position = "none") +
-  geom_text(data=emmeans_m2_phen_Richness_MowFreq1 %>% 
+  geom_text(data=emmeans_m1_phen_Richness_MowFreq1 %>% 
               left_join(phen_Richness_max1, by=c("MowFreq")),
-            aes(x=MowFreq, y=max+1,
-                label=.group),
+            aes(x=MowFreq, y=max+0.5,
+                label= .group 
+            ),
             size=3.5, col="black") 
 
+plot_PhenRichness_Management
 
-## Month -------
+## Month ----------------------------------------------------------------------
 
-emmeans(m2_phen_Richness, list(pairwise ~ Month))
+emmeans(m1_phen_Richness_no_int, list(pairwise ~ Month))
 
-emmeans_m2_phen_Richness_Month <- cld(emmeans(m2_phen_Richness, list(pairwise ~ Month)), 
+emmeans_m1_phen_Richness_Month <- cld(emmeans(m1_phen_Richness_no_int, list(pairwise ~ Month)), 
                                       Letters = letters) %>% 
   arrange(Month)
 
 phen_Richness_max2 <-  Data_1m2 %>% 
   summarise(max=max(phen_Richness), .by = c(Month))
 
-Data_1m2 %>% 
+plot_PhenRichness_Month <- Data_1m2 %>% 
   ggplot(aes(x = Month, y = phen_Richness)) +
   theme_bw() +
   geom_point(aes(color=Month),
              pch=19, size=1.5, alpha=0.6, stroke = 0.8,
-             position = position_jitter(width = 0.25, height = 0)) +
+             position = position_jitter(width = 0.25, height = 0.1)) +
   geom_boxplot(outliers = F, alpha=0) +
   labs(x = "Month", y = "Phenological richness") +
   scale_color_manual(values = Month_col) +
   # theme(legend.position = "none") +
-  geom_text(data=emmeans_m2_phen_Richness_Month %>% 
+  geom_text(data=emmeans_m1_phen_Richness_Month %>% 
               left_join(phen_Richness_max2, by=c("Month")),
             aes(x=Month, y=max+1,
+                # marginally signififcant difference, thus replace with custem letters
+                #  label=  c("a", "ab", "b'" ),
                 label=.group),
             size=3.5, col="black")
 
-## MowFreq * Month  -------
 
-emmeans(m2_phen_Richness, list(pairwise ~ MowFreq | Month))
+plot_PhenRichness_Month
 
-emmeans_m2_phen_Richness_MowFreq <- cld(emmeans(m2_phen_Richness, list(pairwise ~ MowFreq | Month)), 
+## MowFreq * Month  ------------------------------------------------------------
+
+emmeans(m1_phen_Richness, list(pairwise ~ MowFreq | Month))
+
+emmeans_m1_phen_Richness_MowFreq <- cld(emmeans(m1_phen_Richness, list(pairwise ~ MowFreq | Month)), 
                                         Letters = letters) %>% 
   arrange(MowFreq) %>% 
-  mutate(.group = ifelse(Month == "May" & MowFreq== "reduced & sowing", 
-                         "b", .group)) # very close to significant difference
+  as.tibble()
 
 phen_Richness_max <-  Data_1m2 %>% 
   summarise(max=max(phen_Richness), .by = c(MowFreq, Month))
 
-Data_1m2 %>% 
+plot_PhenRichness_Month_Manag_intr <- Data_1m2 %>% 
   ggplot(aes(x = MowFreq, y = phen_Richness)) +
   theme_bw() +
   geom_point(aes(color=Month),
@@ -1393,11 +1997,42 @@ Data_1m2 %>%
   facet_wrap(~Month) +
   scale_color_manual(values = Month_col) +
   theme(legend.position = "none") +
-  geom_text(data=emmeans_m2_phen_Richness_MowFreq %>% 
-              left_join(phen_Richness_max, by=c("MowFreq", "Month")),
+  geom_text(data=emmeans_m1_phen_Richness_MowFreq %>% 
+              left_join(phen_Richness_max, by=c("MowFreq", "Month"))%>% 
+              mutate(.group = case_when(
+                Month == "May" & MowFreq == "regular" ~ "a",
+                Month == "May" & MowFreq == "reduced" ~ "a",
+                Month == "May" & MowFreq == "reduced & sowing" ~ "b",
+                TRUE ~ .group)),
             aes(x=MowFreq, y=max+1,
                 label=.group),
             size=3.5, col="black") 
+
+plot_PhenRichness_Month_Manag_intr
+
+
+## COMBINE PLOTS ---------------------------------------------------------------
+
+library(patchwork)
+
+combined_phen_Richness <- 
+  plot_PhenRichness_Mow_ev + plot_PhenRichness_Litter +
+  plot_PhenRichness_BareSoil + plot_PhenRichness_Slope + 
+  plot_PhenRichness_TreeDist + plot_PhenRichness_Sky + 
+  plot_PhenRichness_Biotop + plot_PhenRichness_ProtcArea + 
+  # plot_PhenRichness_Management + plot_PhenRichness_Month +
+  plot_layout(ncol = 2, guides = "collect") +
+  plot_annotation(tag_levels = "A") &
+  theme(
+    plot.tag = element_text(face = 'bold', size = 15),
+    plot.tag.position = c(0.1, 1.05),
+    plot.margin = margin(t = 22, r = 10, b = 10, l = 10)
+  )
+
+print(combined_phen_Richness)
+
+
+ggsave("results/plots/phen_Richness.png", combined_phen_Richness, width = 7, height = 10, dpi = 450)
 
 
 
@@ -1432,13 +2067,15 @@ m1_phen_evenness <- lmerTest::lmer(phen_evenness ~
                                      MowFreq*Month +  
                                      scale(n_mow_events_befre_sampling) +
                                      scale(Litter_Cover) + 
-                                     scale(road_density_km_per_ha) + 
-                                     scale(patch_size_m2) +
+                                     #      scale(road_density_km_per_ha) + 
+                                     #      scale(patch_size_m2) +
                                      Bare_Ground_Cover + 
                                      scale(slope_degr) + scale(dist_tree) + 
                                      scale(sky_view_factor) +
-                                     scale(Biotop_richness_specific) + 
-                                     scale(green_cover_pct) + 
+                                     scale(log1p(Biotop_richness_specific)) + 
+                                     scale(protected_cover_pct) + 
+                                    # scale(impervious_pct) +
+                                     #   scale(green_cover_pct) + 
                                      (1|PlotNo),
                                    data = Data_1m2)
 
@@ -1452,47 +2089,22 @@ drop1(m1_phen_evenness)
 
 # interaction is  significant
 
-# remove patch_size_m2
-m2_phen_evenness <- lmerTest::lmer(phen_evenness ~ 
-                                     MowFreq*Month +  
-                                     scale(n_mow_events_befre_sampling) +
-                                     scale(Litter_Cover) + 
-                                     scale(road_density_km_per_ha) + 
-                                     # log(patch_size_m2) +
-                                     Bare_Ground_Cover + 
-                                     scale(slope_degr) + scale(dist_tree) + 
-                                     scale(sky_view_factor) +
-                                     scale(Biotop_richness_specific) + 
-                                     log1p(green_cover_pct) + 
-                                     (1|PlotNo),
-                                   data = Data_1m2)
-
-
-
-summary(m2_phen_evenness)
-# check model assumptions
-check_convergence(m2_phen_evenness)
-check_model(m2_phen_evenness)
-
-anova(m1_phen_evenness, m2_phen_evenness)
-# m2_phen_evenness
-
 # check predictor effects
-drop1(m2_phen_evenness)
-# Anova(m2_phen_evenness, type = "II")
+drop1(m1_phen_evenness)
+# Anova(m1_phen_evenness, type = "III", test.statistic = "F")
 
 ## R2 ---------------------------------------------------------------
 # R2 for the entire model
-MuMIn::r.squaredGLMM(m2_phen_evenness)
+MuMIn::r.squaredGLMM(m1_phen_evenness)
 # Partial R2 for fixed effects
-r2glmm::r2beta(m2_phen_evenness,  partial = T)
+r2glmm::r2beta(m1_phen_evenness,  partial = T)
 
-Mod_results_Phen_evenness <- drop1(m2_phen_evenness) %>% as.data.frame() %>% 
+Mod_results_Phen_evenness <- drop1(m1_phen_evenness) %>% as.data.frame() %>% 
   rownames_to_column("Driver") %>% select(-"Sum Sq", -"Mean Sq") %>% 
   # relocate raw "MowFreq:Month" in column "Driver" to the top
   arrange(Driver != "MowFreq:Month") %>% 
   left_join(
-    r2glmm::r2beta(m2_phen_evenness,  partial = T) %>% as.data.frame() %>% 
+    r2glmm::r2beta(m1_phen_evenness,  partial = T) %>% as.data.frame() %>% 
       rename(Driver="Effect") %>% 
       select(Driver,  Rsq), by = "Driver") %>% 
   mutate(Responce = "phen_evenness",.before= Driver)
@@ -1502,97 +2114,146 @@ Mod_results_Phen_evenness %>%
 ## Plots ------------------------------------------------------------------------
 
 library(effects)
-plot(allEffects(m2_phen_evenness))
+plot(allEffects(m1_phen_evenness))
 
+##  Mowing events before sampling  ---------
 
-##  road_density_km_per_ha  ---------
-Data_1m2$phen_evenness %>% 
-  summary()
+mow_events_range = seq(min(Data_1m2$n_mow_events_befre_sampling),
+                       max(Data_1m2$n_mow_events_befre_sampling), 
+                       by = 0.001)
 
-# m2_phen_evenness_Road_pred <- ggpredict(m2_phen_evenness, terms = c("road_density_km_per_ha")) %>% as.data.frame()
-# Very large CI
-# "ggeffects" includes both fixed and random effect uncertainty
-# "effects" Includes only fixed effect uncertainty
-library(effects)
-m2_phen_evenness_Road_pred <- Effect("road_density_km_per_ha", m2_phen_evenness) %>% 
+m1_phen_evenness_Mow_pred <- Effect("n_mow_events_befre_sampling", m1_phen_evenness,
+                                    xlevels = list(n_mow_events_befre_sampling = mow_events_range)) %>% 
   as.data.frame()
 
-ggplot(m2_phen_evenness_Road_pred, aes(x = road_density_km_per_ha, y = fit)) +
-  # add CI across all dataset
-  geom_ribbon(aes(ymin = lower, ymax = upper), 
-              alpha = 0.1) +
-  geom_point(data=Data_1m2,
-             aes(road_density_km_per_ha, phen_evenness, color=Month), 
-             pch=19, size=1.5, alpha=0.6, stroke = 0.8,
-             position = position_jitter(width = 0, height = 0)) +
-  geom_line(linewidth = 1) +
-  theme_bw() +
-  scale_color_manual(values = Month_col) +
-  scale_fill_manual(values = Month_col) +
-  labs(x = "Road density (km/ha)", 
-       y = "Phenological evenness") 
-
-
-
-##  mowing events before sampling  ---------
-
-m2_phen_evenness_Mow_pred <- Effect("n_mow_events_befre_sampling", m2_phen_evenness) %>% 
-  as.data.frame()
-
-ggplot(m2_phen_evenness_Mow_pred, aes(x = n_mow_events_befre_sampling, y = fit)) +
+plot_PhenEvenness_Mow_ev <- ggplot(m1_phen_evenness_Mow_pred, 
+                                   aes(x = n_mow_events_befre_sampling, y = fit)) +
   # add CI across all dataset
   geom_ribbon(aes(ymin = lower, ymax = upper), 
               alpha = 0.1) +
   geom_point(data=Data_1m2,
              aes(n_mow_events_befre_sampling, phen_evenness, color=Month), 
              pch=19, size=1.5, alpha=0.6, stroke = 0.8,
-             position = position_jitter(width = 0.08, height = 0)) +
-  geom_line(linewidth = 1) +
+             position = position_jitter(width = 0.2, height = 0.15)) +
+  geom_line(linewidth = 0.8, linetype="dashed") +
   theme_bw() +
   scale_color_manual(values = Month_col) +
   scale_fill_manual(values = Month_col) +
   labs(x = "Mowing events before sampling", 
        y = "Phenological evenness") 
 
-##  Biotop_richness_specific  ---------
-Data_1m2$Biotop_richness_specific %>% 
-  summary()
+plot_PhenEvenness_Mow_ev
 
-# m2_phen_evenness_Litter_pred <- ggpredict(m2_phen_evenness, terms = c("Biotop_richness_specific")) %>% as.data.frame()
-m2_phen_evenness_Biotop_pred <- Effect("Biotop_richness_specific", m2_phen_evenness) %>% 
+##  Litter_Cover  ---------
+
+Litter_range = seq(min(Data_1m2$Litter_Cover),
+                   max(Data_1m2$Litter_Cover), 
+                   by = 0.01)
+
+m1_phen_evenness_Litter_pred <- Effect("Litter_Cover", 
+                                       m1_phen_evenness,
+                                       xlevels = list(Litter_Cover = Litter_range)) %>% 
   as.data.frame()
 
-ggplot(m2_phen_evenness_Biotop_pred, aes(Biotop_richness_specific, y = fit)) +
+plot_PhenEvenness_Litter <- ggplot(m1_phen_evenness_Litter_pred, aes(Litter_Cover, y = fit)) +
   # add CI across all dataset
   geom_ribbon(aes(ymin = lower, ymax = upper), 
               alpha = 0.1) +
   geom_point(data=Data_1m2,
-             aes(Biotop_richness_specific, phen_evenness, color=Month), 
+             aes(Litter_Cover, phen_evenness, color=Month), 
              pch=19, size=1.5, alpha=0.6, stroke = 0.8,
-             position = position_jitter(width = 0, height = 0)) +
-  geom_line(linewidth = 1) +
+             position = position_jitter(width = 0, height = 0.15))  +
+  geom_line(linewidth = 0.8, linetype="dashed") +
   theme_bw() +
   scale_color_manual(values = Month_col) +
   scale_fill_manual(values = Month_col) +
-  labs(x = "Landscape heterogeneity", 
+  labs(x = "Litter cover, %", 
+       y = "Phenological evenness") 
+
+plot_PhenEvenness_Litter
+
+##  Bare_Ground_Cover  ---------
+
+BareSoil_range = seq(min(Data_1m2$Bare_Ground_Cover),
+                     max(Data_1m2$Bare_Ground_Cover), 
+                     by = 0.001)
+
+m1_phen_evenness_BareSoil_pred <- Effect("Bare_Ground_Cover", 
+                                         m1_phen_evenness,
+                                         xlevels = list(Bare_Ground_Cover = BareSoil_range)) %>% 
+  as.data.frame() 
+
+plot_PhenEvenness_BareSoil <- ggplot(m1_phen_evenness_BareSoil_pred, 
+                                     aes(x = Bare_Ground_Cover, y = fit)) +
+  # add CI across all dataset
+  geom_ribbon(aes(ymin = lower, ymax = upper), 
+              alpha = 0.1) +
+  geom_point(data=Data_1m2,
+             aes(Bare_Ground_Cover, phen_evenness, color=Month), 
+             pch=19, size=1.5, alpha=0.6, stroke = 0.8,
+             position = position_jitter(width = 0, height = 0.15)) +
+  geom_line(linewidth = 0.8, linetype="dashed") +
+  theme_bw() +
+  scale_color_manual(values = Month_col) +
+  scale_fill_manual(values = Month_col) +
+  labs(x = "Bare ground cover (%)",
+       y = "Phenological evenness") 
+
+plot_PhenEvenness_BareSoil
+
+
+##  Slope effect   -------------------------------------------------------------
+
+Slope_range = seq(min(Data_1m2$slope_degr),
+                  max(Data_1m2$slope_degr), 
+                  by = 0.001)
+
+m1_phen_evenness_slope_pred <- Effect("slope_degr", 
+                                      m1_phen_evenness,
+                                      xlevels = list(slope_degr = Slope_range)) %>% 
+  as.data.frame() 
+
+
+plot_PhenEvenness_Slope <-ggplot(m1_phen_evenness_slope_pred, aes(slope_degr, y = fit)) +
+  # add CI across all dataset
+  geom_ribbon(aes(ymin = lower, ymax = upper), 
+              alpha = 0.1) +
+  geom_point(data=Data_1m2,
+             aes(slope_degr, phen_evenness, color=Month), 
+             pch=19, size=1.5, alpha=0.6, stroke = 0.8,
+             position = position_jitter(width = 0.04, height = 0.15)) +
+  geom_line(linewidth = 0.8, linetype="dashed") +
+  theme_bw() +
+  scale_color_manual(values = Month_col) +
+  scale_fill_manual(values = Month_col) +
+  labs(x = "Slope", 
        y = "Phenological evenness") 
 
 
-##  dist_tree  ---------
-Data_1m2$dist_tree %>% 
-  summary()
+plot_PhenEvenness_Slope
 
-m2_phen_evenness_Patch_pred <- Effect("dist_tree", m2_phen_evenness) %>% 
+
+
+## Ttree distance  ----------------------------------------------------------------
+Tree_dist_range = seq(min(Data_1m2$dist_tree),
+                      max(Data_1m2$dist_tree), 
+                      by = 0.001)
+
+m1_phen_evenness_TreeDist_pred <- Effect("dist_tree", 
+                                         m1_phen_evenness,
+                                         xlevels = list(dist_tree = Tree_dist_range)) %>% 
   as.data.frame() 
 
-ggplot(m2_phen_evenness_Patch_pred, aes(x = dist_tree, y = fit)) +
+
+plot_PhenEvenness_TreeDist <-
+  ggplot(m1_phen_evenness_TreeDist_pred, aes(x = dist_tree, y = fit)) +
   # add CI across all dataset
   geom_ribbon(aes(ymin = lower, ymax = upper), 
               alpha = 0.1) +
   geom_point(data=Data_1m2,
              aes(dist_tree, phen_evenness, color=Month), 
              pch=19, size=1.5, alpha=0.6, stroke = 0.8,
-             position = position_jitter(width = 0, height = 0)) +
+             position = position_jitter(width = 0.04, height = 0)) +
   geom_line(linewidth = 1) +
   theme_bw() +
   scale_color_manual(values = Month_col) +
@@ -1600,74 +2261,182 @@ ggplot(m2_phen_evenness_Patch_pred, aes(x = dist_tree, y = fit)) +
   labs(x = "Tree distance (m)",
        y = "Phenological evenness") 
 
+plot_PhenEvenness_TreeDist
 
-## MowFreq -------
 
-emmeans(m2_phen_evenness, list(pairwise ~ MowFreq))
+##  Sky view   -----------------------------------------------------------
 
-emmeans_m2_phen_evenness_MowFreq1 <- cld(emmeans(m2_phen_evenness, list(pairwise ~ MowFreq)), 
+Sky_range = seq(min(Data_1m2$sky_view_factor),
+                max(Data_1m2$sky_view_factor), 
+                by = 0.001)
+
+m1_phen_evenness_Sky_pred <- Effect("sky_view_factor", 
+                                    m1_phen_evenness,
+                                    xlevels = list(sky_view_factor = Sky_range)) %>% 
+  as.data.frame() 
+
+
+plot_PhenEvenness_Sky <- ggplot(m1_phen_evenness_Sky_pred, 
+                                aes(x = sky_view_factor, y = fit)) +
+  # add CI across all dataset
+  geom_ribbon(aes(ymin = lower, ymax = upper), 
+              alpha = 0.1) +
+  geom_point(data=Data_1m2,
+             aes(sky_view_factor, phen_evenness, color=Month), 
+             pch=19, size=1.5, alpha=0.6, stroke = 0.8,
+             position = position_jitter(width = 0.04, height = 0.15)) +
+  geom_line(linewidth = 0.8, linetype="dashed") +
+  theme_bw() +
+  scale_color_manual(values = Month_col) +
+  scale_fill_manual(values = Month_col) +
+  labs(x = "Sky-view factor",
+       y = "Phenological evenness") 
+
+
+plot_PhenEvenness_Sky
+
+##  Biotop_richness_specific  --------------------------------------------------
+
+
+Biotop_range = seq(min(Data_1m2$Biotop_richness_specific),
+                   max(Data_1m2$Biotop_richness_specific), 
+                   by = 0.001)
+
+m1_phen_evenness_Biotop_pred <- Effect("Biotop_richness_specific", 
+                                       m1_phen_evenness,
+                                       xlevels = list(Biotop_richness_specific = Biotop_range)) %>% 
+  as.data.frame()
+
+plot_PhenEvenness_Biotop <- ggplot(m1_phen_evenness_Biotop_pred, 
+                                   aes(Biotop_richness_specific, y = fit)) +
+  # add CI across all dataset
+  geom_ribbon(aes(ymin = lower, ymax = upper), 
+              alpha = 0.1) +
+  geom_point(data=Data_1m2,
+             aes(Biotop_richness_specific, phen_evenness, color=Month), 
+             pch=19, size=1.5, alpha=0.6, stroke = 0.8,
+             position = position_jitter(width = 0.2, height = 0)) +
+  geom_line(linewidth = 1) +
+  theme_bw() +
+  scale_color_manual(values = Month_col) +
+  scale_fill_manual(values = Month_col) +
+  labs(x = "Landscape heterogeneity", 
+       y = "Phenological evenness") 
+
+plot_PhenEvenness_Biotop
+
+
+##  Protected areas  ----------------------------------------------------------
+
+
+ProtecArea_range = seq(min(Data_1m2$protected_cover_pct),
+                       max(Data_1m2$protected_cover_pct), 
+                       by = 0.001)
+
+m1_phen_evenness_Protect_pred <- Effect("protected_cover_pct", 
+                                        m1_phen_evenness,
+                                        xlevels = list(protected_cover_pct = ProtecArea_range))%>% 
+  as.data.frame() 
+
+
+
+plot_PhenEvenness_ProtcArea <- ggplot(m1_phen_evenness_Protect_pred, 
+                                      aes(x = protected_cover_pct, y = fit)) +
+  # add CI across all dataset
+  geom_ribbon(aes(ymin = lower, ymax = upper), 
+              alpha = 0.1) +
+  geom_point(data=Data_1m2,
+             aes(protected_cover_pct, phen_evenness, color=Month), 
+             pch=19, size=1.5, alpha=0.6, stroke = 0.8,
+             position = position_jitter(width = 0.1, height = 0.04)) +
+  geom_line(linewidth = 0.8, linetype="dashed") +
+  theme_bw() +
+  scale_color_manual(values = Month_col) +
+  scale_fill_manual(values = Month_col) +
+  labs(x = "Protected areas (%)",
+       y = "Phenological evenness") 
+
+plot_PhenEvenness_ProtcArea
+
+
+## Management ---------------------------------------------------------------------
+
+m1_phen_evenness_no_int <- update(m1_phen_evenness, . ~ . - MowFreq:Month) # we remove interaction for lotting main effcets
+drop1(m1_phen_evenness_no_int)
+
+emmeans(m1_phen_evenness_no_int, list(pairwise ~ MowFreq))
+
+emmeans_m1_phen_evenness_MowFreq1 <- cld(emmeans(m1_phen_evenness_no_int, list(pairwise ~ MowFreq)), 
                                          Letters = letters) %>% 
   arrange(MowFreq)
 
 phen_evenness_max1 <-  Data_1m2 %>% 
   summarise(max=max(phen_evenness), .by = c(MowFreq))
 
-Data_1m2 %>% 
+plot_PhenEvenness_Management <- Data_1m2 %>% 
   ggplot(aes(x = MowFreq, y = phen_evenness)) +
   theme_bw() +
   geom_point(aes(color=Month),
              pch=19, size=1.5, alpha=0.6, stroke = 0.8,
-             position = position_jitter(width = 0.25, height = 0)) +
+             position = position_jitter(width = 0.25, height = 0.1)) +
   geom_boxplot(outliers = F, alpha=0) +
   labs(x = "Management", y = "Phenological evenness") +
   scale_color_manual(values = Month_col) +
   # theme(legend.position = "none") +
-  geom_text(data=emmeans_m2_phen_evenness_MowFreq1 %>% 
+  geom_text(data=emmeans_m1_phen_evenness_MowFreq1 %>% 
               left_join(phen_evenness_max1, by=c("MowFreq")),
-            aes(x=MowFreq, y=max+3,
-                label=.group),
+            aes(x=MowFreq, y=max+0.5,
+                label= .group 
+            ),
             size=3.5, col="black") 
 
+plot_PhenEvenness_Management
 
-## Month -------
+## Month ----------------------------------------------------------------------
 
-emmeans(m2_phen_evenness, list(pairwise ~ Month))
+emmeans(m1_phen_evenness_no_int, list(pairwise ~ Month))
 
-emmeans_m2_phen_evenness_Month <- cld(emmeans(m2_phen_evenness, list(pairwise ~ Month)), 
+emmeans_m1_phen_evenness_Month <- cld(emmeans(m1_phen_evenness_no_int, list(pairwise ~ Month)), 
                                       Letters = letters) %>% 
   arrange(Month)
 
 phen_evenness_max2 <-  Data_1m2 %>% 
   summarise(max=max(phen_evenness), .by = c(Month))
 
-Data_1m2 %>% 
+plot_PhenEvenness_Month <- Data_1m2 %>% 
   ggplot(aes(x = Month, y = phen_evenness)) +
   theme_bw() +
   geom_point(aes(color=Month),
              pch=19, size=1.5, alpha=0.6, stroke = 0.8,
-             position = position_jitter(width = 0.25, height = 0)) +
+             position = position_jitter(width = 0.25, height = 0.1)) +
   geom_boxplot(outliers = F, alpha=0) +
   labs(x = "Month", y = "Phenological evenness") +
   scale_color_manual(values = Month_col) +
   # theme(legend.position = "none") +
-  geom_text(data=emmeans_m2_phen_evenness_Month %>% 
+  geom_text(data=emmeans_m1_phen_evenness_Month %>% 
               left_join(phen_evenness_max2, by=c("Month")),
-            aes(x=Month, y=max+5,
+            aes(x=Month, y=max+1,
+                # marginally signififcant difference, thus replace with custem letters
+                #  label=  c("a", "ab", "b'" ),
                 label=.group),
             size=3.5, col="black")
 
-## MowFreq * Month  -------
 
-emmeans(m2_phen_evenness, list(pairwise ~ MowFreq | Month))
+plot_PhenEvenness_Month
 
-emmeans_m2_phen_evenness_MowFreq <- cld(emmeans(m2_phen_evenness, list(pairwise ~ MowFreq | Month)), 
+## MowFreq * Month  ------------------------------------------------------------
+
+emmeans(m1_phen_evenness, list(pairwise ~ MowFreq | Month))
+
+emmeans_m1_phen_evenness_MowFreq <- cld(emmeans(m1_phen_evenness, list(pairwise ~ MowFreq | Month)), 
                                         Letters = letters) %>% 
-  arrange(MowFreq)
+  arrange(MowFreq) %>% 
+  as.tibble()
 
 phen_evenness_max <-  Data_1m2 %>% 
   summarise(max=max(phen_evenness), .by = c(MowFreq, Month))
 
-Data_1m2 %>% 
+plot_PhenEvenness_Month_Manag_intr <- Data_1m2 %>% 
   ggplot(aes(x = MowFreq, y = phen_evenness)) +
   theme_bw() +
   geom_point(aes(color=Month),
@@ -1678,11 +2447,39 @@ Data_1m2 %>%
   facet_wrap(~Month) +
   scale_color_manual(values = Month_col) +
   theme(legend.position = "none") +
-  geom_text(data=emmeans_m2_phen_evenness_MowFreq %>% 
+  geom_text(data=emmeans_m1_phen_evenness_MowFreq %>% 
               left_join(phen_evenness_max, by=c("MowFreq", "Month")),
-            aes(x=MowFreq, y=max+0.5,
+            aes(x=MowFreq, y=max+1,
                 label=.group),
             size=3.5, col="black") 
+
+plot_PhenEvenness_Month_Manag_intr
+
+
+## COMBINE PLOTS ---------------------------------------------------------------
+
+library(patchwork)
+
+combined_phen_evenness <- 
+  plot_PhenEvenness_Mow_ev + plot_PhenEvenness_Litter +
+  plot_PhenEvenness_BareSoil + plot_PhenEvenness_Slope + 
+  plot_PhenEvenness_TreeDist + plot_PhenEvenness_Sky + 
+  plot_PhenEvenness_Biotop + plot_PhenEvenness_ProtcArea + 
+  # plot_PhenEvenness_Management + plot_PhenEvenness_Month +
+  plot_layout(ncol = 2, guides = "collect") +
+  plot_annotation(tag_levels = "A") &
+  theme(
+    plot.tag = element_text(face = 'bold', size = 15),
+    plot.tag.position = c(0.1, 1.05),
+    plot.margin = margin(t = 22, r = 10, b = 10, l = 10)
+  )
+
+print(combined_phen_evenness)
+
+
+ggsave("results/plots/phen_evenness.png", combined_phen_evenness, width = 7, height = 10, dpi = 450)
+
+
 
 
 # 4) Functional Diversity -----------------------------------------------------------------------
@@ -1717,13 +2514,14 @@ m1_FRic <- lmerTest::lmer(FRic ~
                             MowFreq*Month +  
                             scale(n_mow_events_befre_sampling) +
                             scale(Litter_Cover) + 
-                            scale(road_density_km_per_ha) + 
-                            scale(patch_size_m2) +
+                            #      scale(road_density_km_per_ha) + 
+                            #      scale(patch_size_m2) +
                             Bare_Ground_Cover + 
                             scale(slope_degr) + scale(dist_tree) + 
                             scale(sky_view_factor) +
-                            scale(Biotop_richness_specific) + 
-                            scale(green_cover_pct) + 
+                            scale(log1p(Biotop_richness_specific)) +
+                              scale(protected_cover_pct) + 
+                           # scale(green_cover_pct) + 
                             (1|PlotNo),
                           data = Data_1m2)
 
@@ -1735,49 +2533,25 @@ check_collinearity(m1_FRic)
 # check interactions
 drop1(m1_FRic)
 
-# interaction is  significant
+# interaction is  marginally significant
 
-# remove patch_size_m2
-m2_FRic <- lmerTest::lmer(FRic ~ 
-                            MowFreq*Month +  
-                            scale(n_mow_events_befre_sampling) +
-                            scale(Litter_Cover) + 
-                            scale(road_density_km_per_ha) + 
-                            # log(patch_size_m2) +
-                            Bare_Ground_Cover + 
-                            scale(slope_degr) + scale(dist_tree) + 
-                            scale(sky_view_factor) +
-                            scale(Biotop_richness_specific) + 
-                            log1p(green_cover_pct) + 
-                            (1|PlotNo),
-                          data = Data_1m2)
-
-
-
-summary(m2_FRic)
-# check model assumptions
-check_convergence(m2_FRic)
-check_model(m2_FRic)
-
-anova(m1_FRic, m2_FRic)
-# m2_FRic
 
 # check predictor effects
-drop1(m2_FRic)
-# Anova(m2_FRic, type = "II")
+drop1(m1_FRic)
+# Anova(m1_FRic, type = "II")
 
 ## R2 ---------------------------------------------------------------
 # R2 for the entire model
-MuMIn::r.squaredGLMM(m2_FRic)
+MuMIn::r.squaredGLMM(m1_FRic)
 # Partial R2 for fixed effects
-r2glmm::r2beta(m2_FRic,  partial = T)
+r2glmm::r2beta(m1_FRic,  partial = T)
 
-Mod_results_FRic <- drop1(m2_FRic) %>% as.data.frame() %>% 
+Mod_results_FRic <- drop1(m1_FRic) %>% as.data.frame() %>% 
   rownames_to_column("Driver") %>% select(-"Sum Sq", -"Mean Sq") %>% 
   # relocate raw "MowFreq:Month" in column "Driver" to the top
   arrange(Driver != "MowFreq:Month") %>% 
   left_join(
-    r2glmm::r2beta(m2_FRic,  partial = T) %>% as.data.frame() %>% 
+    r2glmm::r2beta(m1_FRic,  partial = T) %>% as.data.frame() %>% 
       rename(Driver="Effect") %>% 
       select(Driver,  Rsq), by = "Driver") %>% 
   mutate(Responce = "FRic",.before= Driver)
@@ -1787,66 +2561,266 @@ Mod_results_FRic %>%
 ## Plots ------------------------------------------------------------------------
 
 library(effects)
-plot(allEffects(m2_FRic))
+plot(allEffects(m1_FRic))
 
+##  Mowing events before sampling  ---------
 
-##  mowing events before sampling  ---------
+mow_events_range = seq(min(Data_1m2$n_mow_events_befre_sampling),
+                       max(Data_1m2$n_mow_events_befre_sampling), 
+                       by = 0.001)
 
-m2_FRic_Mow_pred <- Effect("n_mow_events_befre_sampling", m2_FRic) %>% 
+m1_FRic_Mow_pred <- Effect("n_mow_events_befre_sampling", m1_FRic,
+                           xlevels = list(n_mow_events_befre_sampling = mow_events_range)) %>% 
   as.data.frame()
 
-ggplot(m2_FRic_Mow_pred, aes(x = n_mow_events_befre_sampling, y = fit)) +
+plot_FRic_Mow_ev <- ggplot(m1_FRic_Mow_pred, 
+                           aes(x = n_mow_events_befre_sampling, y = fit)) +
   # add CI across all dataset
   geom_ribbon(aes(ymin = lower, ymax = upper), 
               alpha = 0.1) +
   geom_point(data=Data_1m2,
              aes(n_mow_events_befre_sampling, FRic, color=Month), 
              pch=19, size=1.5, alpha=0.6, stroke = 0.8,
-             position = position_jitter(width = 0.08, height = 0)) +
-  geom_line(linewidth = 1) +
+             position = position_jitter(width = 0.2, height = 0.15)) +
+  geom_line(linewidth = 0.8, linetype="dashed") +
   theme_bw() +
   scale_color_manual(values = Month_col) +
   scale_fill_manual(values = Month_col) +
   labs(x = "Mowing events before sampling", 
        y = "Functional richness") 
 
+plot_FRic_Mow_ev
 
+##  Litter_Cover  ---------
 
+Litter_range = seq(min(Data_1m2$Litter_Cover),
+                   max(Data_1m2$Litter_Cover), 
+                   by = 0.01)
+
+m1_FRic_Litter_pred <- Effect("Litter_Cover", 
+                              m1_FRic,
+                              xlevels = list(Litter_Cover = Litter_range)) %>% 
+  as.data.frame()
+
+plot_FRic_Litter <- ggplot(m1_FRic_Litter_pred, aes(Litter_Cover, y = fit)) +
+  # add CI across all dataset
+  geom_ribbon(aes(ymin = lower, ymax = upper), 
+              alpha = 0.1) +
+  geom_point(data=Data_1m2,
+             aes(Litter_Cover, FRic, color=Month), 
+             pch=19, size=1.5, alpha=0.6, stroke = 0.8,
+             position = position_jitter(width = 0, height = 0))  +
+  geom_line(linewidth = 0.8, linetype="dashed") +
+  theme_bw() +
+  scale_color_manual(values = Month_col) +
+  scale_fill_manual(values = Month_col) +
+  labs(x = "Litter cover, %", 
+       y = "Functional richness") 
+
+plot_FRic_Litter
 
 ##  Bare_Ground_Cover  ---------
-Data_1m2$Bare_Ground_Cover %>% 
-  summary()
 
-m2_FRic_green_pred <- Effect("Bare_Ground_Cover", m2_FRic) %>% 
+BareSoil_range = seq(min(Data_1m2$Bare_Ground_Cover),
+                     max(Data_1m2$Bare_Ground_Cover), 
+                     by = 0.001)
+
+m1_FRic_BareSoil_pred <- Effect("Bare_Ground_Cover", 
+                                m1_FRic,
+                                xlevels = list(Bare_Ground_Cover = BareSoil_range)) %>% 
   as.data.frame() 
 
-ggplot(m2_FRic_green_pred, aes(x = Bare_Ground_Cover, y = fit)) +
+plot_FRic_BareSoil <- ggplot(m1_FRic_BareSoil_pred, 
+                             aes(x = Bare_Ground_Cover, y = fit)) +
   # add CI across all dataset
   geom_ribbon(aes(ymin = lower, ymax = upper), 
               alpha = 0.1) +
   geom_point(data=Data_1m2,
              aes(Bare_Ground_Cover, FRic, color=Month), 
              pch=19, size=1.5, alpha=0.6, stroke = 0.8,
-             position = position_jitter(width = 0, height = 0)) +
+             position = position_jitter(width = 0.05, height = 0)) +
   geom_line(linewidth = 1) +
   theme_bw() +
   scale_color_manual(values = Month_col) +
   scale_fill_manual(values = Month_col) +
-  labs(x = "Bare ground (%)",
+  labs(x = "Bare ground cover (%)",
        y = "Functional richness") 
 
-## MowFreq -------
+plot_FRic_BareSoil
 
-emmeans(m2_FRic, list(pairwise ~ MowFreq))
 
-emmeans_m2_FRic_MowFreq1 <- cld(emmeans(m2_FRic, list(pairwise ~ MowFreq)), 
+##  Slope effect   -------------------------------------------------------------
+
+Slope_range = seq(min(Data_1m2$slope_degr),
+                  max(Data_1m2$slope_degr), 
+                  by = 0.001)
+
+m1_FRic_slope_pred <- Effect("slope_degr", 
+                             m1_FRic,
+                             xlevels = list(slope_degr = Slope_range)) %>% 
+  as.data.frame() 
+
+
+plot_FRic_Slope <-ggplot(m1_FRic_slope_pred, aes(slope_degr, y = fit)) +
+  # add CI across all dataset
+  geom_ribbon(aes(ymin = lower, ymax = upper), 
+              alpha = 0.1) +
+  geom_point(data=Data_1m2,
+             aes(slope_degr, FRic, color=Month), 
+             pch=19, size=1.5, alpha=0.6, stroke = 0.8,
+             position = position_jitter(width = 0.04, height = 0.15)) +
+  geom_line(linewidth = 0.8, linetype="dashed") +
+  theme_bw() +
+  scale_color_manual(values = Month_col) +
+  scale_fill_manual(values = Month_col) +
+  labs(x = "Slope", 
+       y = "Functional richness") 
+
+
+plot_FRic_Slope
+
+
+
+## Ttree distance  ----------------------------------------------------------------
+Tree_dist_range = seq(min(Data_1m2$dist_tree),
+                      max(Data_1m2$dist_tree), 
+                      by = 0.001)
+
+m1_FRic_TreeDist_pred <- Effect("dist_tree", 
+                                m1_FRic,
+                                xlevels = list(dist_tree = Tree_dist_range)) %>% 
+  as.data.frame() 
+
+
+plot_FRic_TreeDist <-
+  ggplot(m1_FRic_TreeDist_pred, aes(x = dist_tree, y = fit)) +
+  # add CI across all dataset
+  geom_ribbon(aes(ymin = lower, ymax = upper), 
+              alpha = 0.1) +
+  geom_point(data=Data_1m2,
+             aes(dist_tree, FRic, color=Month), 
+             pch=19, size=1.5, alpha=0.6, stroke = 0.8,
+             position = position_jitter(width = 0.04, height = 0)) +
+  geom_line(linewidth = 0.8, linetype="dashed") +
+  theme_bw() +
+  scale_color_manual(values = Month_col) +
+  scale_fill_manual(values = Month_col) +
+  labs(x = "Tree distance (m)",
+       y = "Functional richness") 
+
+plot_FRic_TreeDist
+
+
+##  Sky view   -----------------------------------------------------------
+
+Sky_range = seq(min(Data_1m2$sky_view_factor),
+                max(Data_1m2$sky_view_factor), 
+                by = 0.001)
+
+m1_FRic_Sky_pred <- Effect("sky_view_factor", 
+                           m1_FRic,
+                           xlevels = list(sky_view_factor = Sky_range)) %>% 
+  as.data.frame() 
+
+
+plot_FRic_Sky <- ggplot(m1_FRic_Sky_pred, 
+                        aes(x = sky_view_factor, y = fit)) +
+  # add CI across all dataset
+  geom_ribbon(aes(ymin = lower, ymax = upper), 
+              alpha = 0.1) +
+  geom_point(data=Data_1m2,
+             aes(sky_view_factor, FRic, color=Month), 
+             pch=19, size=1.5, alpha=0.6, stroke = 0.8,
+             position = position_jitter(width = 0.04, height = 0.15)) +
+  geom_line(linewidth = 0.8, linetype="dashed") +
+  theme_bw() +
+  scale_color_manual(values = Month_col) +
+  scale_fill_manual(values = Month_col) +
+  labs(x = "Sky-view factor",
+       y = "Functional richness") 
+
+
+plot_FRic_Sky
+
+##  Biotop_richness_specific  --------------------------------------------------
+
+
+Biotop_range = seq(min(Data_1m2$Biotop_richness_specific),
+                   max(Data_1m2$Biotop_richness_specific), 
+                   by = 0.001)
+
+m1_FRic_Biotop_pred <- Effect("Biotop_richness_specific", 
+                              m1_FRic,
+                              xlevels = list(Biotop_richness_specific = Biotop_range)) %>% 
+  as.data.frame()
+
+plot_FRic_Biotop <- ggplot(m1_FRic_Biotop_pred, 
+                           aes(Biotop_richness_specific, y = fit)) +
+  # add CI across all dataset
+  geom_ribbon(aes(ymin = lower, ymax = upper), 
+              alpha = 0.1) +
+  geom_point(data=Data_1m2,
+             aes(Biotop_richness_specific, FRic, color=Month), 
+             pch=19, size=1.5, alpha=0.6, stroke = 0.8,
+             position = position_jitter(width = 0.15, height = 0)) +
+  geom_line(linewidth = 0.8, linetype="dashed") +
+  theme_bw() +
+  scale_color_manual(values = Month_col) +
+  scale_fill_manual(values = Month_col) +
+  labs(x = "Landscape heterogeneity", 
+       y = "Functional richness") 
+
+plot_FRic_Biotop
+
+
+##  Protected areas  ----------------------------------------------------------
+
+
+ProtecArea_range = seq(min(Data_1m2$protected_cover_pct),
+                       max(Data_1m2$protected_cover_pct), 
+                       by = 0.001)
+
+m1_FRic_Protect_pred <- Effect("protected_cover_pct", 
+                               m1_FRic,
+                               xlevels = list(protected_cover_pct = ProtecArea_range))%>% 
+  as.data.frame() 
+
+
+
+plot_FRic_ProtcArea <- ggplot(m1_FRic_Protect_pred, 
+                              aes(x = protected_cover_pct, y = fit)) +
+  # add CI across all dataset
+  geom_ribbon(aes(ymin = lower, ymax = upper), 
+              alpha = 0.1) +
+  geom_point(data=Data_1m2,
+             aes(protected_cover_pct, FRic, color=Month), 
+             pch=19, size=1.5, alpha=0.6, stroke = 0.8,
+             position = position_jitter(width = 0.1, height = 0.04)) +
+  geom_line(linewidth = 0.8, linetype="dashed") +
+  theme_bw() +
+  scale_color_manual(values = Month_col) +
+  scale_fill_manual(values = Month_col) +
+  labs(x = "Protected areas (%)",
+       y = "Functional richness") 
+
+plot_FRic_ProtcArea
+
+
+## Management ---------------------------------------------------------------------
+
+m1_FRic_no_int <- update(m1_FRic, . ~ . - MowFreq:Month) # we remove interaction for lotting main effcets
+drop1(m1_FRic_no_int)
+
+emmeans(m1_FRic_no_int, list(pairwise ~ MowFreq))
+
+emmeans_m1_FRic_MowFreq1 <- cld(emmeans(m1_FRic_no_int, list(pairwise ~ MowFreq)), 
                                 Letters = letters) %>% 
   arrange(MowFreq)
 
 FRic_max1 <-  Data_1m2 %>% 
   summarise(max=max(FRic), .by = c(MowFreq))
 
-Data_1m2 %>% 
+plot_FRic_Management <- Data_1m2 %>% 
   ggplot(aes(x = MowFreq, y = FRic)) +
   theme_bw() +
   geom_point(aes(color=Month),
@@ -1856,25 +2830,27 @@ Data_1m2 %>%
   labs(x = "Management", y = "Functional richness") +
   scale_color_manual(values = Month_col) +
   # theme(legend.position = "none") +
-  geom_text(data=emmeans_m2_FRic_MowFreq1 %>% 
+  geom_text(data=emmeans_m1_FRic_MowFreq1 %>% 
               left_join(FRic_max1, by=c("MowFreq")),
-            aes(x=MowFreq, y=max+3,
-                label=.group),
+            aes(x=MowFreq, y=max+0.5,
+                label= .group 
+            ),
             size=3.5, col="black") 
 
+plot_FRic_Management
 
-## Month -------
+## Month ----------------------------------------------------------------------
 
-emmeans(m2_FRic, list(pairwise ~ Month))
+emmeans(m1_FRic_no_int, list(pairwise ~ Month))
 
-emmeans_m2_FRic_Month <- cld(emmeans(m2_FRic, list(pairwise ~ Month)), 
+emmeans_m1_FRic_Month <- cld(emmeans(m1_FRic_no_int, list(pairwise ~ Month)), 
                              Letters = letters) %>% 
   arrange(Month)
 
 FRic_max2 <-  Data_1m2 %>% 
   summarise(max=max(FRic), .by = c(Month))
 
-Data_1m2 %>% 
+plot_FRic_Month <- Data_1m2 %>% 
   ggplot(aes(x = Month, y = FRic)) +
   theme_bw() +
   geom_point(aes(color=Month),
@@ -1884,24 +2860,28 @@ Data_1m2 %>%
   labs(x = "Month", y = "Functional richness") +
   scale_color_manual(values = Month_col) +
   # theme(legend.position = "none") +
-  geom_text(data=emmeans_m2_FRic_Month %>% 
+  geom_text(data=emmeans_m1_FRic_Month %>% 
               left_join(FRic_max2, by=c("Month")),
-            aes(x=Month, y=max+5,
+            aes(x=Month, y=max+1,
                 label=.group),
             size=3.5, col="black")
 
-## MowFreq * Month  -------
 
-emmeans(m2_FRic, list(pairwise ~ MowFreq | Month))
+plot_FRic_Month
 
-emmeans_m2_FRic_MowFreq <- cld(emmeans(m2_FRic, list(pairwise ~ MowFreq | Month)), 
+## MowFreq * Month  ------------------------------------------------------------
+
+emmeans(m1_FRic, list(pairwise ~ MowFreq | Month))
+
+emmeans_m1_FRic_MowFreq <- cld(emmeans(m1_FRic, list(pairwise ~ MowFreq | Month)), 
                                Letters = letters) %>% 
-  arrange(MowFreq)
+  arrange(MowFreq) %>% 
+  as.tibble()
 
 FRic_max <-  Data_1m2 %>% 
   summarise(max=max(FRic), .by = c(MowFreq, Month))
 
-Data_1m2 %>% 
+plot_FRic_Month_Manag_intr <- Data_1m2 %>% 
   ggplot(aes(x = MowFreq, y = FRic)) +
   theme_bw() +
   geom_point(aes(color=Month),
@@ -1912,12 +2892,37 @@ Data_1m2 %>%
   facet_wrap(~Month) +
   scale_color_manual(values = Month_col) +
   theme(legend.position = "none") +
-  geom_text(data=emmeans_m2_FRic_MowFreq %>% 
+  geom_text(data=emmeans_m1_FRic_MowFreq %>% 
               left_join(FRic_max, by=c("MowFreq", "Month")),
-            aes(x=MowFreq, y=max+4,
+            aes(x=MowFreq, y=max+5,
                 label=.group),
             size=3.5, col="black") 
 
+plot_FRic_Month_Manag_intr
+
+
+## COMBINE PLOTS ---------------------------------------------------------------
+
+library(patchwork)
+
+combined_FRic <- 
+  plot_FRic_Mow_ev + plot_FRic_Litter +
+  plot_FRic_BareSoil + plot_FRic_Slope + 
+  plot_FRic_TreeDist + plot_FRic_Sky + 
+  plot_FRic_Biotop + plot_FRic_ProtcArea + 
+  # plot_FRic_Management + plot_FRic_Month +
+  plot_layout(ncol = 2, guides = "collect") +
+  plot_annotation(tag_levels = "A") &
+  theme(
+    plot.tag = element_text(face = 'bold', size = 15),
+    plot.tag.position = c(0.1, 1.05),
+    plot.margin = margin(t = 22, r = 10, b = 10, l = 10)
+  )
+
+print(combined_FRic)
+
+
+ggsave("results/plots/FRic.png", combined_FRic, width = 7, height = 10, dpi = 450)
 
 
 
@@ -1949,16 +2954,17 @@ Data_1m2 %>%
   select(FEve)
 
 m1_FEve <- lmerTest::lmer(FEve ~ 
-                            MowFreq*Month +  
+                            MowFreq * Month +  
                             scale(n_mow_events_befre_sampling) +
                             scale(Litter_Cover) + 
-                            scale(road_density_km_per_ha) + 
-                            scale(patch_size_m2) +
+                            #      scale(road_density_km_per_ha) + 
+                            #      scale(patch_size_m2) +
                             Bare_Ground_Cover + 
                             scale(slope_degr) + scale(dist_tree) + 
                             scale(sky_view_factor) +
                             scale(Biotop_richness_specific) + 
-                            scale(green_cover_pct) + 
+                               scale(protected_cover_pct) + 
+                            # scale(green_cover_pct) + 
                             (1|PlotNo),
                           data = Data_1m2)
 
@@ -1971,37 +2977,22 @@ check_collinearity(m1_FEve)
 drop1(m1_FEve)
 
 # interaction is not significant
-m2_FEve_a <- lmerTest::lmer(FEve ~ 
-                              MowFreq+Month +  
+m2_FEve <- lmerTest::lmer(FEve ~ 
+                              MowFreq + Month +  
                               scale(n_mow_events_befre_sampling) +
                               scale(Litter_Cover) + 
-                              scale(road_density_km_per_ha) + 
-                              scale(patch_size_m2) +
+                              #      scale(road_density_km_per_ha) + 
+                              #      scale(patch_size_m2) +
                               Bare_Ground_Cover + 
                               scale(slope_degr) + scale(dist_tree) + 
                               scale(sky_view_factor) +
                               scale(Biotop_richness_specific) + 
-                              log1p(green_cover_pct) + 
+                                 scale(protected_cover_pct) + 
+                            # scale(green_cover_pct) + 
                               (1|PlotNo),
                             data = Data_1m2)
-# remove patch_size_m2
-m2_FEve <- lmerTest::lmer(FEve ~ 
-                            MowFreq+Month +  
-                            scale(n_mow_events_befre_sampling) +
-                            scale(Litter_Cover) + 
-                            scale(road_density_km_per_ha) + 
-                            # scale(patch_size_m2) +
-                            Bare_Ground_Cover + 
-                            scale(slope_degr) + scale(dist_tree) + 
-                            scale(sky_view_factor) +
-                            scale(Biotop_richness_specific) + 
-                            log1p(green_cover_pct) + 
-                            (1|PlotNo),
-                          data = Data_1m2)
 
 
-
-anova(m2_FEve, m2_FEve_a)
 # check model assumptions
 check_convergence(m2_FEve)
 check_model(m2_FEve)
@@ -2036,41 +3027,261 @@ Mod_results_FEve %>%
 library(effects)
 plot(allEffects(m2_FEve))
 
-##  mowing events before sampling  ---------
+##  Mowing events before sampling  ---------
 
-m2_FEve_Mow_pred <- Effect("n_mow_events_befre_sampling", m2_FEve) %>% 
+mow_events_range = seq(min(Data_1m2$n_mow_events_befre_sampling),
+                       max(Data_1m2$n_mow_events_befre_sampling), 
+                       by = 0.001)
+
+m2_FEve_Mow_pred <- Effect("n_mow_events_befre_sampling", m2_FEve,
+                           xlevels = list(n_mow_events_befre_sampling = mow_events_range)) %>% 
   as.data.frame()
 
-ggplot(m2_FEve_Mow_pred, aes(x = n_mow_events_befre_sampling, y = fit)) +
+plot_FEve_Mow_ev <- ggplot(m2_FEve_Mow_pred, 
+                           aes(x = n_mow_events_befre_sampling, y = fit)) +
   # add CI across all dataset
   geom_ribbon(aes(ymin = lower, ymax = upper), 
               alpha = 0.1) +
   geom_point(data=Data_1m2,
              aes(n_mow_events_befre_sampling, FEve, color=Month), 
              pch=19, size=1.5, alpha=0.6, stroke = 0.8,
-             position = position_jitter(width = 0.08, height = 0)) +
-  geom_line(linewidth = 1) +
+             position = position_jitter(width = 0.2, height = 0.15)) +
+  geom_line(linewidth = 0.8, linetype="dashed") +
   theme_bw() +
   scale_color_manual(values = Month_col) +
   scale_fill_manual(values = Month_col) +
   labs(x = "Mowing events before sampling", 
        y = "Functional evenness") 
 
+plot_FEve_Mow_ev
 
-## MowFreq -------
+##  Litter_Cover  ---------
+
+Litter_range = seq(min(Data_1m2$Litter_Cover),
+                   max(Data_1m2$Litter_Cover), 
+                   by = 0.01)
+
+m2_FEve_Litter_pred <- Effect("Litter_Cover", 
+                              m2_FEve,
+                              xlevels = list(Litter_Cover = Litter_range)) %>% 
+  as.data.frame()
+
+plot_FEve_Litter <- ggplot(m2_FEve_Litter_pred, aes(Litter_Cover, y = fit)) +
+  # add CI across all dataset
+  geom_ribbon(aes(ymin = lower, ymax = upper), 
+              alpha = 0.1) +
+  geom_point(data=Data_1m2,
+             aes(Litter_Cover, FEve, color=Month), 
+             pch=19, size=1.5, alpha=0.6, stroke = 0.8,
+             position = position_jitter(width = 0, height = 0))  +
+  geom_line(linewidth = 0.8, linetype="dashed") +
+  theme_bw() +
+  scale_color_manual(values = Month_col) +
+  scale_fill_manual(values = Month_col) +
+  labs(x = "Litter cover, %", 
+       y = "Functional evenness") 
+
+plot_FEve_Litter
+
+##  Bare_Ground_Cover  ---------
+
+BareSoil_range = seq(min(Data_1m2$Bare_Ground_Cover),
+                     max(Data_1m2$Bare_Ground_Cover), 
+                     by = 0.001)
+
+m2_FEve_BareSoil_pred <- Effect("Bare_Ground_Cover", 
+                                m2_FEve,
+                                xlevels = list(Bare_Ground_Cover = BareSoil_range)) %>% 
+  as.data.frame() 
+
+plot_FEve_BareSoil <- ggplot(m2_FEve_BareSoil_pred, 
+                             aes(x = Bare_Ground_Cover, y = fit)) +
+  # add CI across all dataset
+  geom_ribbon(aes(ymin = lower, ymax = upper), 
+              alpha = 0.1) +
+  geom_point(data=Data_1m2,
+             aes(Bare_Ground_Cover, FEve, color=Month), 
+             pch=19, size=1.5, alpha=0.6, stroke = 0.8,
+             position = position_jitter(width = 0.05, height = 0)) +
+  geom_line(linewidth = 0.8, linetype="dashed") +
+  theme_bw() +
+  scale_color_manual(values = Month_col) +
+  scale_fill_manual(values = Month_col) +
+  labs(x = "Bare ground cover (%)",
+       y = "Functional evenness") 
+
+plot_FEve_BareSoil
+
+
+##  Slope effect   -------------------------------------------------------------
+
+Slope_range = seq(min(Data_1m2$slope_degr),
+                  max(Data_1m2$slope_degr), 
+                  by = 0.001)
+
+m2_FEve_slope_pred <- Effect("slope_degr", 
+                             m2_FEve,
+                             xlevels = list(slope_degr = Slope_range)) %>% 
+  as.data.frame() 
+
+
+plot_FEve_Slope <-ggplot(m2_FEve_slope_pred, aes(slope_degr, y = fit)) +
+  # add CI across all dataset
+  geom_ribbon(aes(ymin = lower, ymax = upper), 
+              alpha = 0.1) +
+  geom_point(data=Data_1m2,
+             aes(slope_degr, FEve, color=Month), 
+             pch=19, size=1.5, alpha=0.6, stroke = 0.8,
+             position = position_jitter(width = 0.04, height = 0.15)) +
+  geom_line(linewidth = 0.8, linetype="dashed") +
+  theme_bw() +
+  scale_color_manual(values = Month_col) +
+  scale_fill_manual(values = Month_col) +
+  labs(x = "Slope", 
+       y = "Functional evenness") 
+
+
+plot_FEve_Slope
+
+
+
+## Ttree distance  ----------------------------------------------------------------
+Tree_dist_range = seq(min(Data_1m2$dist_tree),
+                      max(Data_1m2$dist_tree), 
+                      by = 0.001)
+
+m2_FEve_TreeDist_pred <- Effect("dist_tree", 
+                                m2_FEve,
+                                xlevels = list(dist_tree = Tree_dist_range)) %>% 
+  as.data.frame() 
+
+
+plot_FEve_TreeDist <-
+  ggplot(m2_FEve_TreeDist_pred, aes(x = dist_tree, y = fit)) +
+  # add CI across all dataset
+  geom_ribbon(aes(ymin = lower, ymax = upper), 
+              alpha = 0.1) +
+  geom_point(data=Data_1m2,
+             aes(dist_tree, FEve, color=Month), 
+             pch=19, size=1.5, alpha=0.6, stroke = 0.8,
+             position = position_jitter(width = 0.04, height = 0)) +
+  geom_line(linewidth = 0.8, linetype="dashed") +
+  theme_bw() +
+  scale_color_manual(values = Month_col) +
+  scale_fill_manual(values = Month_col) +
+  labs(x = "Tree distance (m)",
+       y = "Functional evenness") 
+
+plot_FEve_TreeDist
+
+
+##  Sky view   -----------------------------------------------------------
+
+Sky_range = seq(min(Data_1m2$sky_view_factor),
+                max(Data_1m2$sky_view_factor), 
+                by = 0.001)
+
+m2_FEve_Sky_pred <- Effect("sky_view_factor", 
+                           m2_FEve,
+                           xlevels = list(sky_view_factor = Sky_range)) %>% 
+  as.data.frame() 
+
+
+plot_FEve_Sky <- ggplot(m2_FEve_Sky_pred, 
+                        aes(x = sky_view_factor, y = fit)) +
+  # add CI across all dataset
+  geom_ribbon(aes(ymin = lower, ymax = upper), 
+              alpha = 0.1) +
+  geom_point(data=Data_1m2,
+             aes(sky_view_factor, FEve, color=Month), 
+             pch=19, size=1.5, alpha=0.6, stroke = 0.8,
+             position = position_jitter(width = 0.04, height = 0.15)) +
+  geom_line(linewidth = 0.8, linetype="dashed") +
+  theme_bw() +
+  scale_color_manual(values = Month_col) +
+  scale_fill_manual(values = Month_col) +
+  labs(x = "Sky-view factor",
+       y = "Functional evenness") 
+
+
+plot_FEve_Sky
+
+##  Biotop_richness_specific  --------------------------------------------------
+
+
+Biotop_range = seq(min(Data_1m2$Biotop_richness_specific),
+                   max(Data_1m2$Biotop_richness_specific), 
+                   by = 0.001)
+
+m2_FEve_Biotop_pred <- Effect("Biotop_richness_specific", 
+                              m2_FEve,
+                              xlevels = list(Biotop_richness_specific = Biotop_range)) %>% 
+  as.data.frame()
+
+plot_FEve_Biotop <- ggplot(m2_FEve_Biotop_pred, 
+                           aes(Biotop_richness_specific, y = fit)) +
+  # add CI across all dataset
+  geom_ribbon(aes(ymin = lower, ymax = upper), 
+              alpha = 0.1) +
+  geom_point(data=Data_1m2,
+             aes(Biotop_richness_specific, FEve, color=Month), 
+             pch=19, size=1.5, alpha=0.6, stroke = 0.8,
+             position = position_jitter(width = 0.15, height = 0)) +
+  geom_line(linewidth = 0.8, linetype="dashed") +
+  theme_bw() +
+  scale_color_manual(values = Month_col) +
+  scale_fill_manual(values = Month_col) +
+  labs(x = "Landscape heterogeneity", 
+       y = "Functional evenness") 
+
+plot_FEve_Biotop
+
+
+##  Protected areas  ----------------------------------------------------------
+
+
+ProtecArea_range = seq(min(Data_1m2$protected_cover_pct),
+                       max(Data_1m2$protected_cover_pct), 
+                       by = 0.001)
+
+m2_FEve_Protect_pred <- Effect("protected_cover_pct", 
+                               m2_FEve,
+                               xlevels = list(protected_cover_pct = ProtecArea_range))%>% 
+  as.data.frame() 
+
+
+
+plot_FEve_ProtcArea <- ggplot(m2_FEve_Protect_pred, 
+                              aes(x = protected_cover_pct, y = fit)) +
+  # add CI across all dataset
+  geom_ribbon(aes(ymin = lower, ymax = upper), 
+              alpha = 0.1) +
+  geom_point(data=Data_1m2,
+             aes(protected_cover_pct, FEve, color=Month), 
+             pch=19, size=1.5, alpha=0.6, stroke = 0.8,
+             position = position_jitter(width = 0.1, height = 0.04)) +
+  geom_line(linewidth = 0.8, linetype="dashed") +
+  theme_bw() +
+  scale_color_manual(values = Month_col) +
+  scale_fill_manual(values = Month_col) +
+  labs(x = "Protected areas (%)",
+       y = "Functional evenness") 
+
+plot_FEve_ProtcArea
+
+
+## Management ---------------------------------------------------------------------
 
 emmeans(m2_FEve, list(pairwise ~ MowFreq))
 
 emmeans_m2_FEve_MowFreq1 <- cld(emmeans(m2_FEve, list(pairwise ~ MowFreq)), 
                                 Letters = letters) %>% 
-  arrange(MowFreq) %>% 
-  mutate(.group = ifelse(MowFreq == "reduced", "b", .group)) %>% 
-  mutate(.group = ifelse(MowFreq == "reduced & sowing", "ab", .group))
+  arrange(MowFreq)
 
 FEve_max1 <-  Data_1m2 %>% 
   summarise(max=max(FEve), .by = c(MowFreq))
 
-Data_1m2 %>% 
+plot_FEve_Management <- Data_1m2 %>% 
   ggplot(aes(x = MowFreq, y = FEve)) +
   theme_bw() +
   geom_point(aes(color=Month),
@@ -2082,12 +3293,15 @@ Data_1m2 %>%
   # theme(legend.position = "none") +
   geom_text(data=emmeans_m2_FEve_MowFreq1 %>% 
               left_join(FEve_max1, by=c("MowFreq")),
-            aes(x=MowFreq, y=max+0.1,
-                label=.group),
+            aes(x=MowFreq, y=max+0.05,
+                label=c("a", "b'", "a") 
+                # label= .group 
+            ),
             size=3.5, col="black") 
 
+plot_FEve_Management
 
-## Month -------
+## Month ----------------------------------------------------------------------
 
 emmeans(m2_FEve, list(pairwise ~ Month))
 
@@ -2098,7 +3312,7 @@ emmeans_m2_FEve_Month <- cld(emmeans(m2_FEve, list(pairwise ~ Month)),
 FEve_max2 <-  Data_1m2 %>% 
   summarise(max=max(FEve), .by = c(Month))
 
-Data_1m2 %>% 
+plot_FEve_Month <- Data_1m2 %>% 
   ggplot(aes(x = Month, y = FEve)) +
   theme_bw() +
   geom_point(aes(color=Month),
@@ -2114,18 +3328,22 @@ Data_1m2 %>%
                 label=.group),
             size=3.5, col="black")
 
-## MowFreq * Month  -------
 
-emmeans(m2_FEve, list(pairwise ~ MowFreq | Month))
+plot_FEve_Month
 
-emmeans_m2_FEve_MowFreq <- cld(emmeans(m2_FEve, list(pairwise ~ MowFreq | Month)), 
+## MowFreq * Month  ------------------------------------------------------------
+
+emmeans(m1_FEve, list(pairwise ~ MowFreq | Month))
+
+emmeans_m2_FEve_MowFreq <- cld(emmeans(m1_FEve, list(pairwise ~ MowFreq | Month)), 
                                Letters = letters) %>% 
-  arrange(MowFreq)
+  arrange(MowFreq) %>% 
+  as.tibble()
 
 FEve_max <-  Data_1m2 %>% 
   summarise(max=max(FEve), .by = c(MowFreq, Month))
 
-Data_1m2 %>% 
+plot_FEve_Month_Manag_intr <- Data_1m2 %>% 
   ggplot(aes(x = MowFreq, y = FEve)) +
   theme_bw() +
   geom_point(aes(color=Month),
@@ -2138,9 +3356,37 @@ Data_1m2 %>%
   theme(legend.position = "none") +
   geom_text(data=emmeans_m2_FEve_MowFreq %>% 
               left_join(FEve_max, by=c("MowFreq", "Month")),
-            aes(x=MowFreq, y=max+1120,
+            aes(x=MowFreq, y=max+0.1,
                 label=.group),
             size=3.5, col="black") 
+
+plot_FEve_Month_Manag_intr
+
+
+## COMBINE PLOTS ---------------------------------------------------------------
+
+library(patchwork)
+
+combined_FEve <- 
+  plot_FEve_Mow_ev + plot_FEve_Litter +
+  plot_FEve_BareSoil + plot_FEve_Slope + 
+  plot_FEve_TreeDist + plot_FEve_Sky + 
+  plot_FEve_Biotop + plot_FEve_ProtcArea + 
+  # plot_FEve_Management + plot_FEve_Month +
+  plot_layout(ncol = 2, guides = "collect") +
+  plot_annotation(tag_levels = "A") &
+  theme(
+    plot.tag = element_text(face = 'bold', size = 15),
+    plot.tag.position = c(0.1, 1.05),
+    plot.margin = margin(t = 22, r = 10, b = 10, l = 10)
+  )
+
+print(combined_FEve)
+
+
+ggsave("results/plots/FEve.png", combined_FEve, width = 7, height = 10, dpi = 450)
+
+
 
 
 
@@ -2175,13 +3421,15 @@ m1_FDis <- lmerTest::lmer(FDis ~
                             MowFreq*Month +  
                             scale(n_mow_events_befre_sampling) +
                             scale(Litter_Cover) + 
-                            scale(road_density_km_per_ha) + 
-                            scale(patch_size_m2) +
+                            #      scale(road_density_km_per_ha) + 
+                            #      scale(patch_size_m2) +
                             Bare_Ground_Cover + 
                             scale(slope_degr) + scale(dist_tree) + 
                             scale(sky_view_factor) +
                             scale(Biotop_richness_specific) + 
-                            scale(green_cover_pct) + 
+                            scale(protected_cover_pct) + 
+                            #  scale(green_cover_pct) + 
+                           # scale(impervious_pct) +
                             (1|PlotNo),
                           data = Data_1m2)
 
@@ -2194,43 +3442,29 @@ check_collinearity(m1_FDis)
 drop1(m1_FDis)
 
 # interaction is  not significant
-m2_FDis_a <- lmerTest::lmer(FDis ~ 
-                              MowFreq + Month +  
-                              scale(n_mow_events_befre_sampling) +
-                              scale(Litter_Cover) + 
-                              scale(road_density_km_per_ha) + 
-                              scale(patch_size_m2) +
-                              Bare_Ground_Cover + 
-                              scale(slope_degr) + scale(dist_tree) + 
-                              scale(sky_view_factor) +
-                              scale(Biotop_richness_specific) + 
-                              log1p(green_cover_pct) + 
-                              (1|PlotNo),
-                            data = Data_1m2)
-
-# remove patch_size_m2
 m2_FDis <- lmerTest::lmer(FDis ~ 
                             MowFreq + Month +  
-                            scale(n_mow_events_befre_sampling) +
+                            scale(log1p(n_mow_events_befre_sampling)) +
                             scale(Litter_Cover) + 
-                            scale(road_density_km_per_ha) + 
-                            # scale(patch_size_m2) +
+                            #      scale(road_density_km_per_ha) + 
+                            #      scale(patch_size_m2) +
                             Bare_Ground_Cover + 
                             scale(slope_degr) + scale(dist_tree) + 
                             scale(sky_view_factor) +
-                            scale(Biotop_richness_specific) + 
-                            log1p(green_cover_pct) + 
+                            scale(log1p(Biotop_richness_specific)) + 
+                            scale(protected_cover_pct) + 
+                            #  scale(green_cover_pct) + 
+                          #  scale(impervious_pct) +
                             (1|PlotNo),
                           data = Data_1m2)
 
-anova(m2_FDis_a, m2_FDis)
-
 summary(m2_FDis)
 # check model assumptions
+
 check_convergence(m2_FDis)
 check_model(m2_FDis)
+check_collinearity(m2_FDis)
 
-# m2_FDis
 
 # check predictor effects
 drop1(m2_FDis)
@@ -2259,20 +3493,25 @@ Mod_results_FDis %>%
 library(effects)
 plot(allEffects(m2_FDis))
 
+##  Mowing events before sampling  ---------
 
-##  mowing events before sampling  ---------
+mow_events_range = seq(min(Data_1m2$n_mow_events_befre_sampling),
+                       max(Data_1m2$n_mow_events_befre_sampling), 
+                       by = 0.001)
 
-m2_FDis_Mow_pred <- Effect("n_mow_events_befre_sampling", m2_FDis) %>% 
+m2_FDis_Mow_pred <- Effect("n_mow_events_befre_sampling", m2_FDis,
+                           xlevels = list(n_mow_events_befre_sampling = mow_events_range)) %>% 
   as.data.frame()
 
-ggplot(m2_FDis_Mow_pred, aes(x = n_mow_events_befre_sampling, y = fit)) +
+plot_FDis_Mow_ev <- ggplot(m2_FDis_Mow_pred, 
+                           aes(x = n_mow_events_befre_sampling, y = fit)) +
   # add CI across all dataset
   geom_ribbon(aes(ymin = lower, ymax = upper), 
               alpha = 0.1) +
   geom_point(data=Data_1m2,
              aes(n_mow_events_befre_sampling, FDis, color=Month), 
              pch=19, size=1.5, alpha=0.6, stroke = 0.8,
-             position = position_jitter(width = 0.08, height = 0)) +
+             position = position_jitter(width = 0.2, height = 0.15)) +
   geom_line(linewidth = 1) +
   theme_bw() +
   scale_color_manual(values = Month_col) +
@@ -2280,69 +3519,56 @@ ggplot(m2_FDis_Mow_pred, aes(x = n_mow_events_befre_sampling, y = fit)) +
   labs(x = "Mowing events before sampling", 
        y = "Functional dispersion") 
 
-##  Biotop_richness_specific  ---------
-Data_1m2$Biotop_richness_specific %>% 
-  summary()
+plot_FDis_Mow_ev
 
-# m2_FDis_Litter_pred <- ggpredict(m2_FDis, terms = c("Biotop_richness_specific")) %>% as.data.frame()
-m2_FDis_Biotop_pred <- Effect("Biotop_richness_specific", m2_FDis) %>% 
+##  Litter_Cover  ---------
+
+Litter_range = seq(min(Data_1m2$Litter_Cover),
+                   max(Data_1m2$Litter_Cover), 
+                   by = 0.01)
+
+m2_FDis_Litter_pred <- Effect("Litter_Cover", 
+                              m2_FDis,
+                              xlevels = list(Litter_Cover = Litter_range)) %>% 
   as.data.frame()
 
-ggplot(m2_FDis_Biotop_pred, aes(Biotop_richness_specific, y = fit)) +
+plot_FDis_Litter <- ggplot(m2_FDis_Litter_pred, aes(Litter_Cover, y = fit)) +
   # add CI across all dataset
   geom_ribbon(aes(ymin = lower, ymax = upper), 
               alpha = 0.1) +
   geom_point(data=Data_1m2,
-             aes(Biotop_richness_specific, FDis, color=Month), 
+             aes(Litter_Cover, FDis, color=Month), 
              pch=19, size=1.5, alpha=0.6, stroke = 0.8,
-             position = position_jitter(width = 0, height = 0)) +
-  geom_line(linewidth = 1) +
+             position = position_jitter(width = 0, height = 0))  +
+  geom_line(linewidth = 0.8, linetype="dashed") +
   theme_bw() +
   scale_color_manual(values = Month_col) +
   scale_fill_manual(values = Month_col) +
-  labs(x = "Landscape heterogeneity", 
+  labs(x = "Litter cover, %", 
        y = "Functional dispersion") 
 
-
-##  dist_tree  ---------
-Data_1m2$dist_tree %>% 
-  summary()
-
-m2_FDis_Patch_pred <- Effect("dist_tree", m2_FDis) %>% 
-  as.data.frame() 
-
-ggplot(m2_FDis_Patch_pred, aes(x = dist_tree, y = fit)) +
-  # add CI across all dataset
-  geom_ribbon(aes(ymin = lower, ymax = upper), 
-              alpha = 0.1) +
-  geom_point(data=Data_1m2,
-             aes(dist_tree, FDis, color=Month), 
-             pch=19, size=1.5, alpha=0.6, stroke = 0.8,
-             position = position_jitter(width = 0, height = 0)) +
-  geom_line(linewidth = 1) +
-  theme_bw() +
-  scale_color_manual(values = Month_col) +
-  scale_fill_manual(values = Month_col) +
-  labs(x = "Tree distance (m)",
-       y = "Functional dispersion") 
-
-
+plot_FDis_Litter
 
 ##  Bare_Ground_Cover  ---------
-Data_1m2$Bare_Ground_Cover %>% 
-  summary()
 
-m2_FDis_green_pred <- Effect("Bare_Ground_Cover", m2_FDis) %>% 
+BareSoil_range = seq(min(Data_1m2$Bare_Ground_Cover),
+                     max(Data_1m2$Bare_Ground_Cover), 
+                     by = 0.001)
+
+m2_FDis_BareSoil_pred <- Effect("Bare_Ground_Cover", 
+                                m2_FDis,
+                                xlevels = list(Bare_Ground_Cover = BareSoil_range)) %>% 
   as.data.frame() 
 
-ggplot(m2_FDis_green_pred, aes(x = Bare_Ground_Cover, y = fit)) +
+plot_FDis_BareSoil <- ggplot(m2_FDis_BareSoil_pred, 
+                             aes(x = Bare_Ground_Cover, y = fit)) +
   # add CI across all dataset
   geom_ribbon(aes(ymin = lower, ymax = upper), 
               alpha = 0.1) +
   geom_point(data=Data_1m2,
              aes(Bare_Ground_Cover, FDis, color=Month), 
              pch=19, size=1.5, alpha=0.6, stroke = 0.8,
-             position = position_jitter(width = 0, height = 0)) +
+             position = position_jitter(width = 0.05, height = 0)) +
   geom_line(linewidth = 1) +
   theme_bw() +
   scale_color_manual(values = Month_col) +
@@ -2350,7 +3576,167 @@ ggplot(m2_FDis_green_pred, aes(x = Bare_Ground_Cover, y = fit)) +
   labs(x = "Bare ground cover (%)",
        y = "Functional dispersion") 
 
-## MowFreq -------
+plot_FDis_BareSoil
+
+
+##  Slope effect   -------------------------------------------------------------
+
+Slope_range = seq(min(Data_1m2$slope_degr),
+                  max(Data_1m2$slope_degr), 
+                  by = 0.001)
+
+m2_FDis_slope_pred <- Effect("slope_degr", 
+                             m2_FDis,
+                             xlevels = list(slope_degr = Slope_range)) %>% 
+  as.data.frame() 
+
+
+plot_FDis_Slope <-ggplot(m2_FDis_slope_pred, aes(slope_degr, y = fit)) +
+  # add CI across all dataset
+  geom_ribbon(aes(ymin = lower, ymax = upper), 
+              alpha = 0.1) +
+  geom_point(data=Data_1m2,
+             aes(slope_degr, FDis, color=Month), 
+             pch=19, size=1.5, alpha=0.6, stroke = 0.8,
+             position = position_jitter(width = 0.04, height = 0.15)) +
+  geom_line(linewidth = 0.8, linetype="dashed") +
+  theme_bw() +
+  scale_color_manual(values = Month_col) +
+  scale_fill_manual(values = Month_col) +
+  labs(x = "Slope", 
+       y = "Functional dispersion") 
+
+
+plot_FDis_Slope
+
+
+
+## Ttree distance  ----------------------------------------------------------------
+Tree_dist_range = seq(min(Data_1m2$dist_tree),
+                      max(Data_1m2$dist_tree), 
+                      by = 0.001)
+
+m2_FDis_TreeDist_pred <- Effect("dist_tree", 
+                                m2_FDis,
+                                xlevels = list(dist_tree = Tree_dist_range)) %>% 
+  as.data.frame() 
+
+
+plot_FDis_TreeDist <-
+  ggplot(m2_FDis_TreeDist_pred, aes(x = dist_tree, y = fit)) +
+  # add CI across all dataset
+  geom_ribbon(aes(ymin = lower, ymax = upper), 
+              alpha = 0.1) +
+  geom_point(data=Data_1m2,
+             aes(dist_tree, FDis, color=Month), 
+             pch=19, size=1.5, alpha=0.6, stroke = 0.8,
+             position = position_jitter(width = 0.04, height = 0)) +
+  geom_line(linewidth = 1) +
+  theme_bw() +
+  scale_color_manual(values = Month_col) +
+  scale_fill_manual(values = Month_col) +
+  labs(x = "Tree distance (m)",
+       y = "Functional dispersion") 
+
+plot_FDis_TreeDist
+
+
+##  Sky view   -----------------------------------------------------------
+
+Sky_range = seq(min(Data_1m2$sky_view_factor),
+                max(Data_1m2$sky_view_factor), 
+                by = 0.001)
+
+m2_FDis_Sky_pred <- Effect("sky_view_factor", 
+                           m2_FDis,
+                           xlevels = list(sky_view_factor = Sky_range)) %>% 
+  as.data.frame() 
+
+
+plot_FDis_Sky <- ggplot(m2_FDis_Sky_pred, 
+                        aes(x = sky_view_factor, y = fit)) +
+  # add CI across all dataset
+  geom_ribbon(aes(ymin = lower, ymax = upper), 
+              alpha = 0.1) +
+  geom_point(data=Data_1m2,
+             aes(sky_view_factor, FDis, color=Month), 
+             pch=19, size=1.5, alpha=0.6, stroke = 0.8,
+             position = position_jitter(width = 0.04, height = 0.15)) +
+  geom_line(linewidth = 0.8, linetype="dashed") +
+  theme_bw() +
+  scale_color_manual(values = Month_col) +
+  scale_fill_manual(values = Month_col) +
+  labs(x = "Sky-view factor",
+       y = "Functional dispersion") 
+
+
+plot_FDis_Sky
+
+##  Biotop_richness_specific  --------------------------------------------------
+
+
+Biotop_range = seq(min(Data_1m2$Biotop_richness_specific),
+                   max(Data_1m2$Biotop_richness_specific), 
+                   by = 0.001)
+
+m2_FDis_Biotop_pred <- Effect("Biotop_richness_specific", 
+                              m2_FDis,
+                              xlevels = list(Biotop_richness_specific = Biotop_range)) %>% 
+  as.data.frame()
+
+plot_FDis_Biotop <- ggplot(m2_FDis_Biotop_pred, 
+                           aes(Biotop_richness_specific, y = fit)) +
+  # add CI across all dataset
+  geom_ribbon(aes(ymin = lower, ymax = upper), 
+              alpha = 0.1) +
+  geom_point(data=Data_1m2,
+             aes(Biotop_richness_specific, FDis, color=Month), 
+             pch=19, size=1.5, alpha=0.6, stroke = 0.8,
+             position = position_jitter(width = 0.15, height = 0)) +
+  geom_line(linewidth = 1) +
+  theme_bw() +
+  scale_color_manual(values = Month_col) +
+  scale_fill_manual(values = Month_col) +
+  labs(x = "Landscape heterogeneity", 
+       y = "Functional dispersion") 
+
+plot_FDis_Biotop
+
+
+##  Protected areas  ----------------------------------------------------------
+
+
+ProtecArea_range = seq(min(Data_1m2$protected_cover_pct),
+                       max(Data_1m2$protected_cover_pct), 
+                       by = 0.001)
+
+m2_FDis_Protect_pred <- Effect("protected_cover_pct", 
+                               m2_FDis,
+                               xlevels = list(protected_cover_pct = ProtecArea_range))%>% 
+  as.data.frame() 
+
+
+
+plot_FDis_ProtcArea <- ggplot(m2_FDis_Protect_pred, 
+                              aes(x = protected_cover_pct, y = fit)) +
+  # add CI across all dataset
+  geom_ribbon(aes(ymin = lower, ymax = upper), 
+              alpha = 0.1) +
+  geom_point(data=Data_1m2,
+             aes(protected_cover_pct, FDis, color=Month), 
+             pch=19, size=1.5, alpha=0.6, stroke = 0.8,
+             position = position_jitter(width = 0.1, height = 0.04)) +
+  geom_line(linewidth = 0.8, linetype="dashed") +
+  theme_bw() +
+  scale_color_manual(values = Month_col) +
+  scale_fill_manual(values = Month_col) +
+  labs(x = "Protected areas (%)",
+       y = "Functional dispersion") 
+
+plot_FDis_ProtcArea
+
+
+## Management ---------------------------------------------------------------------
 
 emmeans(m2_FDis, list(pairwise ~ MowFreq))
 
@@ -2361,7 +3747,7 @@ emmeans_m2_FDis_MowFreq1 <- cld(emmeans(m2_FDis, list(pairwise ~ MowFreq)),
 FDis_max1 <-  Data_1m2 %>% 
   summarise(max=max(FDis), .by = c(MowFreq))
 
-Data_1m2 %>% 
+plot_FDis_Management <- Data_1m2 %>% 
   ggplot(aes(x = MowFreq, y = FDis)) +
   theme_bw() +
   geom_point(aes(color=Month),
@@ -2373,12 +3759,15 @@ Data_1m2 %>%
   # theme(legend.position = "none") +
   geom_text(data=emmeans_m2_FDis_MowFreq1 %>% 
               left_join(FDis_max1, by=c("MowFreq")),
-            aes(x=MowFreq, y=max+0.5,
-                label=.group),
+            aes(x=MowFreq, y=max+0.2,
+                label=c("a", "b'", "a") 
+                # label= .group 
+            ),
             size=3.5, col="black") 
 
+plot_FDis_Management
 
-## Month -------
+## Month ----------------------------------------------------------------------
 
 emmeans(m2_FDis, list(pairwise ~ Month))
 
@@ -2389,7 +3778,7 @@ emmeans_m2_FDis_Month <- cld(emmeans(m2_FDis, list(pairwise ~ Month)),
 FDis_max2 <-  Data_1m2 %>% 
   summarise(max=max(FDis), .by = c(Month))
 
-Data_1m2 %>% 
+plot_FDis_Month <- Data_1m2 %>% 
   ggplot(aes(x = Month, y = FDis)) +
   theme_bw() +
   geom_point(aes(color=Month),
@@ -2401,22 +3790,26 @@ Data_1m2 %>%
   # theme(legend.position = "none") +
   geom_text(data=emmeans_m2_FDis_Month %>% 
               left_join(FDis_max2, by=c("Month")),
-            aes(x=Month, y=max+0.5,
+            aes(x=Month, y=max+0.2,
                 label=.group),
             size=3.5, col="black")
 
-## MowFreq * Month  -------
 
-emmeans(m2_FDis, list(pairwise ~ MowFreq | Month))
+plot_FDis_Month
 
-emmeans_m2_FDis_MowFreq <- cld(emmeans(m2_FDis, list(pairwise ~ MowFreq | Month)), 
+## MowFreq * Month  ------------------------------------------------------------
+
+emmeans(m1_FDis, list(pairwise ~ MowFreq | Month))
+
+emmeans_m2_FDis_MowFreq <- cld(emmeans(m1_FDis, list(pairwise ~ MowFreq | Month)), 
                                Letters = letters) %>% 
-  arrange(MowFreq)
+  arrange(MowFreq) %>% 
+  as.tibble()
 
 FDis_max <-  Data_1m2 %>% 
   summarise(max=max(FDis), .by = c(MowFreq, Month))
 
-Data_1m2 %>% 
+plot_FDis_Month_Manag_intr <- Data_1m2 %>% 
   ggplot(aes(x = MowFreq, y = FDis)) +
   theme_bw() +
   geom_point(aes(color=Month),
@@ -2429,403 +3822,124 @@ Data_1m2 %>%
   theme(legend.position = "none") +
   geom_text(data=emmeans_m2_FDis_MowFreq %>% 
               left_join(FDis_max, by=c("MowFreq", "Month")),
-            aes(x=MowFreq, y=max+0.5,
+            aes(x=MowFreq, y=max+0.25,
                 label=.group),
             size=3.5, col="black") 
 
-
-# 5) Neophyte proportion ----------------------------------------------------------
-# Neophytes_mass_propr is the proportion of neophytes in the total biomass, so it is a value between 0 and 1.
-
-## Exploration: ----------------------------
-
-Data_1m2 %>%
-  select(Month, Neophytes_mass_propr, 
-         n_mow_events_befre_sampling,
-           Bare_Ground_Cover, Litter_Cover, slope_degr, dist_tree, 
-           sky_view_factor, patch_size_m2, Biotop_richness_specific, 
-         green_cover_pct_log, road_density_km_per_ha, protected_cover_pct) %>% 
-  pivot_longer(-c(Month, Neophytes_mass_propr), 
-               names_to = "variable", values_to = "value") %>%
-  ggplot(aes(x = value, y = log1p(Neophytes_mass_propr))) +
-  geom_point(aes(color=Month), alpha=0.6) +
-  geom_smooth(method = "lm", 
-              se = TRUE, color = "blue") +
-  facet_wrap(~ variable, scales = "free_x") +
-  theme_bw() +
-  scale_color_manual(values = Month_col) +
-  labs(x = NULL, y = "Neophytes biomass proportion")
+plot_FDis_Month_Manag_intr
 
 
-## Models: ----------------------------
-Data_1m2 %>% 
-  select(biomass, Neophytes_mass_propr)
-# Neophytes_mass_propr is the proportion of neophytes in the total biomass, so it is a value between 0 and 1.
-# beta regression is appropriate for modeling proportions, but it cannot handle values exactly equal to 0 or 1.
-# we use zero-inflated beta regression to account for the excess zeros in the data (plots with no neophytes).
+## COMBINE PLOTS ---------------------------------------------------------------
 
-library(glmmTMB)
-m1_neo <- glmmTMB(Neophytes_mass_propr ~ 
-                    # SR + 
-                    Month*MowFreq +  
-                    n_mow_events_befre_sampling +
-                    Litter_Cover + 
-                    road_density_km_per_ha + 
-                    patch_size_m2_scaled +
-                    Bare_Ground_Cover + 
-                    slope_degr + dist_tree + 
-                    sky_view_factor +
-                    Biotop_richness_specific + 
-                    log1p(green_cover_pct) + 
-                    (1|PlotNo),
-                  family = beta_family(),
-                  ziformula = ~1,
-                  # weights = biomass, # In glmmTMB with beta family, weights are interpreted as precision weights (inverse variance), not as sample sizes like in binomial models. If we would want to weight by total biomass as a measure of reliability, this would work. But this is not what we want.
-                  data = Data_1m2)
+library(patchwork)
 
-# check model assumptions
-check_convergence(m1_neo)
-check_model(m1_neo)
-check_overdispersion(m1_neo)
+combined_FDis <- 
+  plot_FDis_Mow_ev + plot_FDis_Litter +
+  plot_FDis_BareSoil + plot_FDis_Slope + 
+  plot_FDis_TreeDist + plot_FDis_Sky + 
+  plot_FDis_Biotop + plot_FDis_ProtcArea + 
+  # plot_FDis_Management + plot_FDis_Month +
+  plot_layout(ncol = 2, guides = "collect") +
+  plot_annotation(tag_levels = "A") &
+  theme(
+    plot.tag = element_text(face = 'bold', size = 15),
+    plot.tag.position = c(0.1, 1.05),
+    plot.margin = margin(t = 22, r = 10, b = 10, l = 10)
+  )
 
-# check interactions
-drop1(m1_neo, test = "Chisq")
-
-# interaction is not significant, remove the interaction term
-m2_neo <- glmmTMB(Neophytes_mass_propr ~ 
-                   # SR + 
-                    Month + MowFreq +  
-                    n_mow_events_befre_sampling +
-                    Litter_Cover + 
-                    road_density_km_per_ha + 
-                    patch_size_m2_scaled +
-                    Bare_Ground_Cover + 
-                    slope_degr + dist_tree + 
-                    sky_view_factor +
-                    Biotop_richness_specific + 
-                    log1p(green_cover_pct) +
-                  (1|PlotNo),
-                  family = beta_family(),
-                  ziformula = ~1,
-                  data = Data_1m2)
+print(combined_FDis)
 
 
-# remove patch_size_m2_scaled
-m2_neo_b <- glmmTMB(Neophytes_mass_propr ~ 
-                    # SR + 
-                    Month + MowFreq +  
-                    n_mow_events_befre_sampling +
-                    Litter_Cover + 
-                    road_density_km_per_ha + 
-                  #  patch_size_m2_scaled +
-                    Bare_Ground_Cover + 
-                    slope_degr + dist_tree + 
-                    sky_view_factor +
-                    Biotop_richness_specific + 
-                    log1p(green_cover_pct) +
-                    (1|PlotNo),
-                  family = beta_family(),
-                  ziformula = ~1,
-                  data = Data_1m2)
-
-
-anova(m2_neo, m2_neo_b)
-
-summary(m2_neo)
-
-# check model assumptions
-check_convergence(m2_neo)
-check_model(m2_neo)
-check_collinearity(m2_neo)
-check_overdispersion(m2_neo)
-
-# model diagnostics based on the simulated residuals
-m2_neo_simres <- DHARMa::simulateResiduals(m2_neo)
-plot(m2_neo_simres)
-
-
-# check predictor effects
-drop1(m2_neo, test = "Chisq")
-# Anova(m2_neo, type = "II")
-
-
-## R2 ---------------------------------------------------------------
-# R2 for the entire model
-MuMIn::r.squaredGLMM(m2_neo)
-performance::r2(m2_neo)
-# Partial R2 do not work with glmmTMB
-# r2glmm::r2beta(m2_neo,  partial = T)
-# No good way to calculate for beta glmmTMB
-
-
-Mod_results_neo <- drop1(m2_neo, test = "Chisq") %>% as.data.frame() %>% 
-  rownames_to_column("Driver") %>% select(-AIC) %>% 
-  filter(Driver != "<none>") %>% 
-  rename("Chi"= LRT) 
-# NO Partial R2
-  # relocate raw "MowFreq:Month" in column "Driver" to the top
-#  left_join(
-#    r2glmm::r2beta(m2_neo,  partial = T) %>% as.data.frame() %>% 
-#      rename(Driver="Effect") %>% 
-#      select(Driver,  Rsq), by = "Driver") %>% 
-#  mutate(Responce = "Neoph", .before= Driver)
-
-
-Mod_results_neo %>% 
-  write_csv("results/GLMM_Neophite_perc.csv")
+ggsave("results/plots/FDis.png", combined_FDis, width = 7, height = 10, dpi = 450)
 
 
 
-## Plots ------------------------------------------------------------------------
-
-##  road_density_km_per_ha  ---------
-Data_1m2$road_density_km_per_ha %>% 
-  summary()
-
-m2_neo_Road_pred <- ggpredict(m2_neo, 
-                              terms = c("road_density_km_per_ha[0.06:0.151, by=0.001]")) %>%
-  as.data.frame()
-
-ggplot(m2_neo_Road_pred, aes(x = x, y = predicted)) +
-  # add CI across all dataset
-  geom_ribbon(aes(ymin = conf.low, ymax = conf.high), 
-              alpha = 0.1) +
-  geom_point(data=Data_1m2,
-             aes(road_density_km_per_ha, Neophytes_mass_propr, color=Month), 
-             pch=19, size=1.5, alpha=0.6, stroke = 0.8,
-             position = position_jitter(width = 0, height = 0)) +
-  geom_line(linewidth = 1) +
-  theme_bw() +
-  scale_color_manual(values = Month_col) +
-  scale_fill_manual(values = Month_col) +
-  scale_y_continuous(labels = scales::percent) +
-  labs(x = "Road density (km/ha)", 
-       y = "% biomass of neophytes") 
-
-##  Litter_Cover  ---------
-Data_1m2$Litter_Cover %>% 
-  summary()
-
-m2_neo_Litter_pred <- ggpredict(m2_neo, terms = c("Litter_Cover[2.00:65.00, by=0.01]")) %>%
-  as.data.frame()
-
-ggplot(m2_neo_Litter_pred, aes(x = x, y = predicted)) +
-  # add CI across all dataset
-  geom_ribbon(aes(ymin = conf.low, ymax = conf.high), 
-              alpha = 0.1) +
-  geom_point(data=Data_1m2,
-             aes(Litter_Cover, Neophytes_mass_propr, color=Month), 
-             pch=19, size=1.5, alpha=0.6, stroke = 0.8,
-             position = position_jitter(width = 0, height = 0)) +
-  geom_line(linewidth = 1) +
-  theme_bw() +
-  scale_color_manual(values = Month_col) +
-  scale_fill_manual(values = Month_col) +
-  scale_y_continuous(labels = scales::percent) +
-  labs(x = "Litter cover, %", 
-       y = "% biomass of neophytes") 
-
-##  mowing events before sampling  ---------
-
-m2_neo_Mow_pred <- ggpredict(m2_neo, terms = c("n_mow_events_befre_sampling[-0.2:3.2, by=0.0001]")) %>%
-  as.data.frame()
-
-ggplot(m2_neo_Mow_pred, aes(x = x, y = predicted)) +
-  # add CI across all dataset
-  geom_ribbon(aes(ymin = conf.low, ymax = conf.high), 
-              alpha = 0.1) +
-  geom_point(data=Data_1m2,
-               aes(n_mow_events_befre_sampling, Neophytes_mass_propr, color=Month), 
-              pch=19, size=1.5, alpha=0.6, stroke = 0.8,
-              position = position_jitter(width = 0.08, height = 0)) +
-  geom_line(linewidth = 1) +
-  theme_bw() +
-  scale_color_manual(values = Month_col) +
-  scale_fill_manual(values = Month_col) +
-  scale_y_continuous(labels = scales::percent) +
-  labs(x = "Mowing events before sampling", 
-       y = "% biomass of neophytes") 
 
 
-##  Patch size  ---------
-Data_1m2$patch_size_m2_scaled %>% 
-  summary()
+# 5) R2 figure -----------------------------------------------------------------
 
-m2_neo_Patch_pred <- ggpredict(m2_neo, 
-                              terms = c("patch_size_m2_scaled[-1.25:2.28, by=0.001]")) %>%
-  as.data.frame() %>% 
-  mutate(x_tr = x * sd(Data_1m2$patch_size_m2) + mean(Data_1m2$patch_size_m2))
-
-ggplot(m2_neo_Patch_pred, aes(x = x_tr, y = predicted)) +
-  # add CI across all dataset
-  geom_ribbon(aes(ymin = conf.low, ymax = conf.high), 
-              alpha = 0.1) +
-  geom_point(data=Data_1m2,
-             aes(patch_size_m2, Neophytes_mass_propr, color=Month), 
-             pch=19, size=1.5, alpha=0.6, stroke = 0.8,
-             position = position_jitter(width = 0, height = 0)) +
-  geom_line(linewidth = 1) +
-  theme_bw() +
-  scale_color_manual(values = Month_col) +
-  scale_fill_manual(values = Month_col) +
-  scale_y_continuous(labels = scales::percent) +
-  labs(x = expression("Patch size, m"^2),
-       y = "% biomass of neophytes") 
-
-## MowFreq -------
-
-emmeans(m2_neo, list(pairwise ~ MowFreq))
-
-emmeans_m2_neo_MowFreq1 <- cld(emmeans(m2_neo, list(pairwise ~ MowFreq)), 
-                              Letters = letters) %>% 
-  arrange(MowFreq)
-
-Neo_max1 <-  Data_1m2 %>% 
-  summarise(max=max(Neophytes_mass_propr), .by = c(MowFreq))
-
-Data_1m2 %>% 
-  ggplot(aes(x = MowFreq, y = Neophytes_mass_propr)) +
-  theme_bw() +
-  geom_point(aes(color=Month),
-             pch=19, size=1.5, alpha=0.6, stroke = 0.8,
-             position = position_jitter(width = 0.25, height = 0)) +
-  geom_boxplot(outliers = F, alpha=0) +
-  labs(x = "Management", y = "% biomass of neophytes") +
-  scale_color_manual(values = Month_col) +
-  # theme(legend.position = "none") +
-  geom_text(data=emmeans_m2_neo_MowFreq1 %>% 
-              left_join(Neo_max1, by=c("MowFreq")),
-            aes(x=MowFreq, y=max+0.2,
-                label=.group),
-            size=3.5, col="black") 
-
-
-## Month -------
-
-emmeans(m2_neo, list(pairwise ~ Month))
-
-emmeans_m2_neo_Month <- cld(emmeans(m2_neo, list(pairwise ~ Month)), 
-                               Letters = letters) %>% 
-  arrange(Month)
-
-Neo_max2 <-  Data_1m2 %>% 
-  summarise(max=max(Neophytes_mass_propr), .by = c(Month))
-
-Data_1m2 %>% 
-  ggplot(aes(x = Month, y = Neophytes_mass_propr)) +
-  theme_bw() +
-  geom_point(aes(color=Month),
-             pch=19, size=1.5, alpha=0.6, stroke = 0.8,
-             position = position_jitter(width = 0.25, height = 0)) +
-  geom_boxplot(outliers = F, alpha=0) +
-  labs(x = "Month", y = "% biomass of neophytes") +
-  scale_color_manual(values = Month_col) +
-  # theme(legend.position = "none") +
-  geom_text(data=emmeans_m2_neo_Month %>% 
-              left_join(Neo_max2, by=c("Month")),
-            aes(x=Month, y=max+0.1,
-                label=.group),
-            size=3.5, col="black")
-
-## MowFreq * Month  -------
-
-emmeans(m2_neo, list(pairwise ~ MowFreq | Month))
-
-emmeans_m2_neo_MowFreq <- cld(emmeans(m2_neo, list(pairwise ~ MowFreq | Month)), 
-                          Letters = letters) %>% 
-  arrange(MowFreq)
-
-Neo_max <-  Data_1m2 %>% 
-  summarise(max=max(Neophytes_mass_propr), .by = c(MowFreq, Month))
-
-Data_1m2 %>% 
-  ggplot(aes(x = MowFreq, y = Neophytes_mass_propr)) +
-  theme_bw() +
-  geom_point(aes(color=Month),
-             pch=19, size=1.5, alpha=0.6, stroke = 0.8,
-             position = position_jitter(width = 0.25, height = 0)) +
-  geom_boxplot(outliers = F, alpha=0) +
-  labs(x = "Management", y = "% biomass of neophytes") +
-  facet_wrap(~Month) +
-  scale_color_manual(values = Month_col) +
-  theme(legend.position = "none") +
-  geom_text(data=emmeans_m2_neo_MowFreq %>% 
-              left_join(Neo_max, by=c("MowFreq", "Month")),
-            aes(x=MowFreq, y=max+0.2,
-                label=.group),
-            size=3.5, col="black") 
-
-
-
-# 6) R2 figure -----------------------------------------------------------------
-
-# Function to extract partial R2 AND coefficient sign
-get_partial_r2_with_sign <- function(model, response_name) {
+# Function to extract coefficient sign
+get_coefs_sign <- function(model, response_name) {
   tryCatch({
-    # Get partial R²
-    r2_df <- r2glmm::r2beta(model, partial = TRUE) |>
-      as.data.frame() |>
-      filter(Effect != "Model") |>
-      select(Effect, Rsq) |>
-      rename(Driver = Effect, partial_R2 = Rsq)
-    
-    # Get coefficient signs from model
-    coefs <- fixef(model)
+    coefs_raw <- fixef(model)
+    coefs <- if (is.list(coefs_raw)) unlist(coefs_raw) else coefs_raw
     coef_df <- data.frame(
       Driver = names(coefs),
-      sign = ifelse(coefs > 0, "positive", "negative")
+      sign   = ifelse(coefs > 0, "positive", "negative"),
+      stringsAsFactors = FALSE
     )
-    
-    # Join and return
-    r2_df |>
-      left_join(coef_df, by = "Driver") |>
-      mutate(
-        Response = response_name,
-        # For categorical variables (Month, MowFreq), set as NA or "mixed"
-        sign = ifelse(is.na(sign), "categorical", sign)
-      )
+    coef_df %>% mutate(Response = response_name)
   }, error = function(e) {
     message(paste("Error with", response_name, ":", e$message))
-    return(NULL)
+    NULL
   })
 }
 
+# call for one model
+read_csv("results/LMM_biomass.csv") %>% mutate(Response = "Biomass") %>% 
+  select(Driver, p_value=`Pr(>F)`, Rsq, Response) %>% 
+  left_join(
+  get_coefs_sign(m1_biomass, "Biomass"),
+  by = c("Driver", "Response"))
+  
+
+coef_sign <- bind_rows(
+          get_coefs_sign(m1_biomass,"Biomass"),
+          get_coefs_sign(m2_SR_dummy, "Species richness"),
+          get_coefs_sign(m2_evenness, "Hill-Simpson diversity"),
+          get_coefs_sign(m1_phen_Richness, "Phenological richness"),
+          get_coefs_sign(m1_phen_evenness, "Phenological evenness"),
+          get_coefs_sign(m1_FRic, "Functional richness"),
+          get_coefs_sign(m2_FEve, "Functional evenness"),
+          get_coefs_sign(m2_FDis, "Functional dispersion")) %>% 
+  select( Driver, sign, Response) 
+
 # Combine all models
 all_r2 <- bind_rows(
-  get_partial_r2_with_sign(m2_biomass, "Biomass"),
-  get_partial_r2_with_sign(m2_SR_dummy, "Species richness"),
-  get_partial_r2_with_sign(m2_evenness, "Hill-Simpson diversity"),
-  get_partial_r2_with_sign(m2_phen_Richness, "Phenological richness"),
-  get_partial_r2_with_sign(m2_phen_evenness, "Phenological evenness"),
-  get_partial_r2_with_sign(m2_FRic, "Functional richness"),
-  get_partial_r2_with_sign(m2_FEve, "Functional evenness"),
-  get_partial_r2_with_sign(m2_FDis, "Functional dispersion")
-)
-
-# Clean driver names
-all_r2 <- all_r2 |>
+  read_csv("results/LMM_biomass.csv") %>% mutate(Response = "Biomass") %>% 
+    select(Driver, p_value=`Pr(>F)`, Rsq, Response), 
+  read_csv("results/GLMM_SpecRich.csv")%>% mutate(Response = "Species richness")%>% 
+    select(Driver, p_value=`Pr(Chi)`, Rsq, Response), 
+  read_csv("results/LMM_evenness.csv")%>% mutate(Response = "Hill-Simpson diversity")%>% 
+    select(Driver, p_value=`Pr(>F)`, Rsq, Response),
+  read_csv("results/LMM_Phenol_Richness.csv")%>% mutate(Response = "Phenological richness")%>% 
+    select(Driver, p_value=`Pr(>F)`, Rsq, Response),
+  read_csv("results/LMM_Phen_evenness.csv")%>% mutate(Response = "Phenological evenness")%>% 
+    select(Driver, p_value=`Pr(>F)`, Rsq, Response),
+  read_csv("results/LMM_Functional_richness.csv")%>% mutate(Response = "Functional richness")%>% 
+    select(Driver, p_value=`Pr(>F)`, Rsq, Response),
+  read_csv("results/LMM_Funct_evenness.csv")%>% mutate(Response = "Functional evenness")%>% 
+    select(Driver, p_value=`Pr(>F)`, Rsq, Response),
+  read_csv("results/LMM_Functional_dispersion.csv")%>% mutate(Response = "Functional dispersion")%>% 
+    select(Driver, p_value=`Pr(>F)`, Rsq, Response)) %>% 
+  left_join(coef_sign, by = c("Driver", "Response")) %>%
   mutate(Driver_clean = case_when(
     grepl("MowFreq:Month|Month:MowFreq", Driver) ~ "Management × Season",
     grepl("MowFreq", Driver) ~ "Management",
     grepl("Month", Driver) ~ "Season",
-    grepl("road_density", Driver) ~ "Road density",
     grepl("Litter_Cover", Driver) ~ "Litter cover",
     grepl("n_mow_events", Driver) ~ "Mowing events",
-    grepl("patch_size", Driver) ~ "Patch size",
+    grepl("protected_cover_pct", Driver) ~ "Protected areas",
+    grepl("protected_cover_scaled", Driver) ~ "Protected areas",
     grepl("Biotop_richness", Driver) ~ "Landscape heterogeneity",
     grepl("slope_degr", Driver) ~ "Slope",
     grepl("dist_tree", Driver) ~ "Tree distance",
     grepl("sky_view", Driver) ~ "Sky-view factor",
     grepl("Bare_Ground", Driver) ~ "Bare ground",
-    grepl("green_cover", Driver) ~ "Green cover",
-    TRUE ~ Driver
-  )) |>
+    TRUE ~ Driver)) %>% 
   # Set categorical variables
   mutate(sign = case_when(
-    Driver_clean %in% c("Management × Season", "Management", "Season") ~ "categorical",
-    TRUE ~ sign
-  ))
+           Driver_clean %in% c("Management × Season", "Management", "Season") ~ "categorical",
+           TRUE ~ sign
+         )) %>% 
+  rename(partial_R2 = Rsq) %>% 
+  mutate(significance=ifelse(p_value < 0.05, "significant", "non-significant")) 
+  
+all_r2 %>% 
+  filter(is.na(sign))
 
+all_r2 %>% pull(Driver_clean) %>% unique()
+  
 # Set order of responses
 all_r2 <- all_r2 |>
   mutate(Response = factor(Response, levels = c(
@@ -2848,24 +3962,31 @@ all_r2 <- all_r2 |>
     "Sky-view factor",
     "Patch size",
     "Landscape heterogeneity",
-    "Green cover",
-    "Road density"
+    "Protected areas"
   )))
 
-# Plot with color by sign
-ggplot(all_r2 %>% 
+
+all_r2 %>% 
+  select(Driver_clean, partial_R2, sign, Response) %>% 
+  pivot_longer(cols = c(Response), names_to = "metric", values_to = "value") 
+
+  
+  # Plot with color by sign
+R2_plot <- ggplot(all_r2 %>% 
          mutate(sign=case_when(
            sign == "positive" ~ "positive effect",
            sign == "negative" ~ "negative effect",
-           TRUE ~ "categorical driver"
-         ))
-       , aes(x = Response, y = Driver_clean, fill = sign, size = partial_R2)) +
+           TRUE ~ "categorical driver")), 
+       aes(x = Response, y = Driver_clean, 
+           fill = sign, size = partial_R2, alpha=significance)) +
   geom_point(shape = 21, stroke = 0.5) +
   scale_fill_manual(
     values = c("negative effect" = "#B2182B", "positive effect" = "#2166AC", 
-               "categorical driver" = "grey65"),
+               "categorical driver" = "olivedrab"),
     name = "Effect type"
   ) +
+  scale_alpha_manual(values = c("significant" = 1, "non-significant" = 0.5), 
+                     name = "Effect significance") +
   scale_size_continuous(
     range = c(1, 8),
     name = expression(Partial~R^2)
@@ -2873,8 +3994,19 @@ ggplot(all_r2 %>%
   theme_bw() +
   theme(
     axis.text.x = element_text(angle = 45, hjust = 1),
+    axis.text = element_text(color = "black", size=10),
     panel.grid.major = element_line(color = "grey90"),
-    legend.position = "right"
+    legend.position = "right") +
+  guides(
+    fill = guide_legend(override.aes = list(size = 5)),
+    alpha = guide_legend(override.aes = list(
+      size   = 5,
+      fill   = c("grey69", "grey75"),   # dark = significant, light = non-significant
+      colour = "black",
+      alpha  = c(1, 0.5)
+    ))
   ) +
-  guides(fill = guide_legend(override.aes = list(size = 5))) +
-  labs(x = "Response variables", y = "Drivers")
+  labs(x = "Plant community variables", y = "Drivers")
+
+R2_plot
+ggsave("results/plots/R2_plot.png", R2_plot, width = 8, height = 6, dpi = 450)
