@@ -1,8 +1,8 @@
-# Code abd data for Guttek et al (2027) [Applied Vegetation Science](https://www.sciencedirect.com/journal/biological-conservation)
+# Code abd data for Guttek et al (2027) [Applied Vegetation Science](https://onlinelibrary.wiley.com/journal/1654109x)
 
 ## Guttek C.I., Buzhdygan O., Tietjen B., Vynokurov D., Borovyk D. (2027) 
 ## Management effects on plant community in urban grasslands depend on biodiversity facet and growing season
-
+### (title is subject to change) 
 
 
 # Project Structure
