@@ -29,6 +29,10 @@ R.version.string
 # Citation for R
 citation()
 
+# Package citations
+utils::citation("vegan")
+
+
 # Data -------------------------------------------------------------------------
 
 ## Plot data ------------------------------------------------------------------
@@ -151,8 +155,8 @@ Data_1m2 <- Dat1_1m2 %>%
 
 names(Data_1m2)
 
-Data_1m2 %>% 
-  write_csv("data/processed_data/Data_1m2_analysis.csv")
+# Data_1m2 %>% 
+#  write_csv("data/processed_data/Data_1m2_analysis.csv")
 
 
 # assigning colors for the plots
@@ -206,12 +210,12 @@ m1_biomass <- lmerTest::lmer(biomass ~
 # check model assumptions
 check_convergence(m1_biomass)
 check_model(m1_biomass)
-check_collinearity(m1_biomass)
+check_collinearity(m1_biomass) # high only for interaction
 # check interactions
 drop1(m1_biomass)
-
 # interaction is  significant
 
+summary(m1_biomass)
 
 ## R2 ---------------------------------------------------------------
 # R2 for the entire model
@@ -234,6 +238,7 @@ Mod_results_biomass %>%
 
 ## Plots ------------------------------------------------------------------------
 
+# Exploartory plots:
 library(effects)
 plot(allEffects(m1_biomass))
 
@@ -539,8 +544,7 @@ plot_Biomass_Month <- Data_1m2 %>%
   geom_text(data=emmeans_m1_biomass_Month %>% 
               left_join(biomass_max2, by=c("Month")),
             aes(x=Month, y=max+500,
-                # marginally signififcant difference, thus replace with custem letters
-                label=  c("a", "ab", "b'" )
+                # marginally significant difference, thus replace with custom letters
                 label=.group),
             size=3.5, col="black")
 
@@ -609,12 +613,11 @@ ggsave("results/plots/Biomass.png", combined_Biomass, width = 7, height = 10, dp
 
 
 
-
 # 2) Species diversity  ----------------------------------------------------------
 
 # 2.1) Species richness -----------------------
 
-## Exploration: ----------------------------
+## Exploration figures: ----------------------------
 
 Data_1m2 %>%
   select(Month, SR,
@@ -642,14 +645,11 @@ m1_SR <- glmer(SR ~
                  MowFreq*Month +  
                  scale(n_mow_events_befre_sampling) +
                  scale(Litter_Cover) + 
-                 #      scale(road_density_km_per_ha) + 
-                 #      scale(patch_size_m2) +
                  Bare_Ground_Cover + 
                  scale(slope_degr) + scale(dist_tree) + 
                  scale(sky_view_factor) +
                  scale(Biotop_richness_specific) + 
-                 scale(protected_cover_pct) + #  scale(impervious_pct) +
-                 #   scale(green_cover_pct) + 
+                 scale(protected_cover_pct) + 
                  (1|PlotNo),
                family = poisson,
                control = glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 200000)),  
@@ -668,14 +668,11 @@ drop1(m1_SR, test = "Chisq")
 m2_SR <- glmer(SR ~ MowFreq + Month +  
                    scale(n_mow_events_befre_sampling) +
                    scale(Litter_Cover) + 
-                   #      scale(road_density_km_per_ha) + 
-                   #      scale(patch_size_m2) +
-                   Bare_Ground_Cover + 
+                    Bare_Ground_Cover + 
                    scale(log1p(slope_degr)) + scale(dist_tree) + 
                    scale(sky_view_factor) +
                   scale(log1p(Biotop_richness_specific)) + 
-                  scale(protected_cover_pct) +  # scale(impervious_pct) +
-                  #   scale(green_cover_pct) + 
+                  scale(protected_cover_pct) +  
                    (1|PlotNo),
                  family = poisson,
                  control = glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 200000)),  
@@ -701,8 +698,8 @@ MuMIn::r.squaredGLMM(m2_SR)
 # Partial R2 for fixed effects
 r2glmm::r2beta(m2_SR,  partial = T)
 
-# r2beta has problem with scale directly in teh model, rerun model
-Data_1m2_dummy <-Data_1m2 %>% 
+# r2beta has problem with scale directly in the model, rerun model
+Data_1m2_dummy <- Data_1m2 %>% 
   mutate(
     n_mow_events_scaled = scale(n_mow_events_befre_sampling),
     Litter_Cover_scaled = scale(Litter_Cover),
@@ -1661,6 +1658,8 @@ Mod_results_Phen_Richness <- drop1(m1_phen_Richness) %>% as.data.frame() %>%
 
 Mod_results_Phen_Richness %>% 
   write_csv("results/LMM_Phenol_Richness.csv")
+
+
 ## Plots ------------------------------------------------------------------------
 
 library(effects)
