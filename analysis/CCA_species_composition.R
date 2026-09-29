@@ -1,9 +1,8 @@
-
-# Purpose:  Canonical correspondence analysis for species composition sampled at 1m2 plots
+# Canonical correspondence analysis for species composition sampled at 1m2 plots
 
 dev.off()
 
-
+# load libraries -----
 library(tidyverse)
 library(vegan)
 library(ggrepel)
@@ -312,26 +311,3 @@ ggsave("results/plots/CCA_plot2.png", plot2, width = 10, height = 8, dpi = 350)
 
 
 
-# Species associations with mowing treatments -------
-
-
-goodness(ord_mod, display = "species", summerise=T) %>% 
-  as_tibble(rownames = "Taxon_EuroMed") %>%
-  arrange(desc(CCA1), desc(CCA2))  
-
-
-# Reduced mowing and sowing:
-sp.scrs %>% 
-  arrange(desc(CCA1), desc(CCA2)) %>% 
-  filter(CCA1 > 0.5 & CCA2 > 0.5) 
-
-# Reduced mowing:
-
-sp.scrs %>% 
-  arrange(CCA1, desc(CCA2)) %>% 
-  filter(CCA1 > 0.5 & CCA2 > 0.5)
-
-
-library(indicspecies)
-res <- multipatt(sp, env$Management, control = how(nperm = 999))
-summary(res) 

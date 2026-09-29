@@ -64,7 +64,6 @@ decorana((Phenophase_compos))
 
 
 # RDA analysis -----
-Phenophase_compos_hell <- decostand(Phenophase_compos, method = "hellinger")
 Phenophase_compos_log <- log1p(Phenophase_compos) 
 
 decorana(Phenophase_compos_log) 

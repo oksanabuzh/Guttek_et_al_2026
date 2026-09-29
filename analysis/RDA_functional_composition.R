@@ -80,7 +80,6 @@ decorana((FuncComp))
 
 # RDA analysis -----
 FuncComp_hell <- decostand(FuncComp, method = "hellinger")
-FuncComp_log <- log1p(FuncComp) 
 
 set.seed(1)
 ord_mod <-  rda(FuncComp_hell ~ # MowFreq:Month + 
